@@ -1,8 +1,9 @@
--- what to do with Prog = Decl+ ?
-data id = Int -- internal representation of variables
+type Id = String
 data RetType = Type | Void
-data Type = Int | Bool | Tuple Type Type | List Type | id
-data Exp = 
+data Type = Num Int | Bool | Tuple Type Type | List Type | Id
+
+data Op1 = Negate | UnitaryMinus
+data Op2 = Add | Sub | Mult | Div | Mod | Equals | Less | More | LessEq | MoreEq | Not | And | Or -- what's ':'?
 
 main = do putStrLn "test"
 
