@@ -1,27 +1,7 @@
 module Parser where
 
 import TreeLib
-
-type Id = String
-
-data Prog = Decl
-data Decl = VarDecl | FunDecl
-
--- data VarDecl
--- data FunDecl
-
--- data FArgs
--- data ActArgs
--- data FunCall
-
-data Exp = Exp Op2 Exp | Op1 Exp | FunCall | RetType -- is ret type ok in this case otherwise multiple declaration of the same Type?
-data RetType = Type | Void
-data Type = Num Int | Bool | Tuple Type Type | List Type | Id
-
--- data Stmt
-
-data Op1 = Negate | UnitaryMinus
-data Op2 = Add | Sub | Mult | Div | Mod | Equals | Less | More | LessEq | MoreEq | Not | And | Or -- what's ':'? -> I guess list = [x:xs]
+import GrammarLib
 
 t1 = Node 10 Tip Tip
 t2 = Node 17 (Node 12 (Node 5 Tip (leaf 8)) (leaf 15))
@@ -30,5 +10,6 @@ t2 = Node 17 (Node 12 (Node 5 Tip (leaf 8)) (leaf 15))
                     (leaf 163))
 main = do pict t2
 
--- probably need for conversion functions that pattern match on arguments like conv (x,y) = Tuple x y;
+-- probably need for overloaded conversion function 'parse' that pattern matches on arguments like toTuple (x,y) = Tuple x y but may not be so compositional;
 -- in the end should declare Prog =... and main = do Prog;
+-- for flexibility grammar should be placed in a separate file but not a .txt file in order to be properly checked by haskell for type consistency;
