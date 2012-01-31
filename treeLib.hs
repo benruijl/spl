@@ -82,6 +82,6 @@ listToTree ls f = foldl (\tre x -> insert x tre f) Tip ls
 tsort ls f = treeToListOrd (listToTree ls f)	  
 							  
 				
--- Converts a tree into a sorted list.  This list will not convert back into the same tree this time !.
+-- Converts a tree into a sorted list.  This list will not convert back into the same tree this time !
 treeToListOrd Tip = []
 treeToListOrd (Node x xl xr) = treeToListOrd xl ++ x : treeToListOrd xr

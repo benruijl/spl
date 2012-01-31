@@ -30,5 +30,5 @@ t2 = Node 17 (Node 12 (Node 5 Tip (leaf 8)) (leaf 15))
                     (leaf 163))
 main = do pict t2
 
--- probably need for conversion functions that pattern match on arguments like conv (x,y) = Tuple x y
--- in the end should declare Prog =... and main = do Prog
+-- probably need for conversion functions that pattern match on arguments like conv (x,y) = Tuple x y;
+-- in the end should declare Prog =... and main = do Prog;
