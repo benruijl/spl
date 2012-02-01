@@ -5,7 +5,7 @@ type Id = String
 data Prog = Decl
 data Decl = VarDecl | FunDecl
 
-type VarDecl = (Type, (Id, Exp)) -- is it like this or should it be more like ((Type, Id), Exp)?
+type VarDecl = ((Type, Id), Exp)
 -- type FunDecl
 
  -- use tuple of Type and Id as arguments?
