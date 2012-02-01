@@ -1,5 +1,4 @@
 module Ibach where
-
 import Char
 
 data Expression = Num Int
