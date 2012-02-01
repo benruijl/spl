@@ -8,7 +8,9 @@ data Decl = VarDecl | FunDecl
 -- data VarDecl
 -- data FunDecl
 
--- data FArgs
+ -- use tuple of Type and Id as arguments?
+ -- bit strange that Type can also be Id
+type FArgs = [(Type, Id)]
 -- data ActArgs
 -- data FunCall
 
@@ -19,4 +21,4 @@ data Type = Num Int | Bool | Tuple Type Type | List Type | Id
 -- data Stmt
 
 data Op1 = Negate | UnitaryMinus
-data Op2 = Add | Sub | Mult | Div | Mod | Equals | Less | More | LessEq | MoreEq | Not | And | Or -- what's ':'? -> I guess list = [x:xs]
+data Op2 = Add | Sub | Mult | Div | Mod | Equals | Less | More | LessEq | MoreEq | Not | And | Or | Concat 
