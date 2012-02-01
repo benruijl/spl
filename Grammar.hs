@@ -1,4 +1,4 @@
-module GrammarLib where
+module Grammar where
 
 type Id = String
 

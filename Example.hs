@@ -1,4 +1,4 @@
-module Ibach where
+module Example where
 import Char
 
 data Expression = Num Int
