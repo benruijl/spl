@@ -37,3 +37,40 @@ charParse (c:cs) = Just(c,cs)
 
 alphaParse = parseCheck charParse isAlpha
 digitParse = parseCheck charParse isDigit 
+
+checkChar :: Char -> Parser Char
+checkChar c = parseCheck charParse (==c)
+
+-- feed the result from parser A to parser B
+chainParse :: Parser a -> Parser b -> Parser (a,b)
+chainParse a b cs =
+  case a cs of
+    Nothing -> Nothing
+    Just(c, cs') -> 
+      case b cs' of
+        Nothing -> Nothing
+        Just(q,cs'') -> Just((c,q),cs'')
+
+-- converts a parsed expression to another type
+convert :: Parser a -> (a -> b) -> Parser b
+convert p k cs = 
+  case p cs of
+    Nothing -> Nothing
+    Just(a,cs') -> Just(k a, cs')
+
+cat :: (a, [a]) -> [a]
+cat (hd, tl) = hd:tl
+
+-- iterate parsing until an error is met
+iter :: Parser a -> Parser [a]
+iter p = orParse ( convert (chainParse p (iter p)) cat ) (tuple [])
+
+-- converts a string to int. Haskell doensn't have this function, strangely
+toNum :: [Char] -> Int
+toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
+
+numberParse :: Parser Int
+numberParse = convert (iter digitParse) toNum
+
+wordParse :: Parser String
+wordParse = iter alphaParse  
