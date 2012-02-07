@@ -70,6 +70,7 @@ cat2 :: (a, a) -> [a]
 cat2 (hd, snd) = [hd , snd]
 
 -- iterate parsing until an error is met
+-- warning: iter returns an empty list instead of Nothing
 iter :: Scanner a -> Scanner [a]
 iter p = (p # iter p) >-> cat ! tuple []
 
@@ -86,12 +87,16 @@ wordScan = iter alphaScan
 
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
-opList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!"]
+opList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "="]
 
-opScan = (twoChar >-> cat2) ? (\x -> elem x opList)
+opScan = ((twoChar >-> cat2) ? inList) ! ((char >-> (\x -> [x])) ? inList) 
+  where
+  inList x = elem x opList
 
+-- note: intScan returns an empty string on total failure instead of nothing
 intScan = (((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan)
 
--- line scan, all
---lineScan = iter (identScan ! opList ! intScan)
+-- line scan, space not supported. 
+-- lineScan "a<=528;" gets parsed correctly
+lineScan = iter (identScan ! opScan ! (intScan ? (/="")))
 
