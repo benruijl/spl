@@ -1,3 +1,8 @@
+-- ?: Scan with p and check the parsed value with b, p ? b
+-- !: Scan with a, if fails, parse with b, a ! b
+-- #: Scan with a, parse leftovers with b, a # b
+-- >->: Convert parsed type a to b
+
 import Char
 
 -- parser converts a string to a tuple of what's parsed and the remaining string
@@ -8,37 +13,38 @@ char :: Scanner Char
 char (c:cs) = Just(c,cs)
 char [] = Nothing
 
+twoChar = char # char
+
 -- Returns (a,cs)
 tuple :: a -> Scanner a
 tuple a cs = Just(a,cs)
 
--- Parse and check result
-parseCheck :: (Scanner a) -> (a -> Bool) -> Scanner a
-parseCheck p b cs = 
+-- Scan and check result
+infixl 7 ?
+(?) :: (Scanner a) -> (a -> Bool) -> Scanner a
+(?) p b cs = 
   case p cs of
      Nothing -> Nothing -- parsing failed
      Just (c, cs) -> if b c then Just(c,cs) else Nothing
 
 -- A or B: Tries parsing with parser A. If it succeeds, it returns. Else parser B is tried. 
-orParse :: Scanner a -> Scanner a -> Scanner a
-orParse a b cs = 
+infixl 3 !
+(!) :: Scanner a -> Scanner a -> Scanner a
+(!) a b cs = 
   case a cs of
     Nothing -> b cs
     acs -> acs
 
-charParse :: Scanner Char
-charParse [] = Nothing
-charParse (c:cs) = Just(c,cs)
+alphaScan = char ? isAlpha
+digitScan = char ? isDigit
+alphaNumUnderScoreScan :: Scanner Char
+alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x  || x == '_')
+matchChar c = char ? (==c)
 
-alphaParse = parseCheck charParse isAlpha
-digitParse = parseCheck charParse isDigit 
-
-checkChar :: Char -> Scanner Char
-checkChar c = parseCheck charParse (==c)
-
--- feed the result from parser A to parser B
-chainParse :: Scanner a -> Scanner b -> Scanner (a,b)
-chainParse a b cs =
+-- feed the result from parser A to parser B (chainScan)
+infixl 6 #
+(#) :: Scanner a -> Scanner b -> Scanner (a,b)
+(#) a b cs =
   case a cs of
     Nothing -> Nothing
     Just(c, cs') -> 
@@ -47,8 +53,9 @@ chainParse a b cs =
         Just(q,cs'') -> Just((c,q),cs'')
 
 -- converts a parsed expression to another type
-convert :: Scanner a -> (a -> b) -> Scanner b
-convert p k cs = 
+infixl 5 >->
+(>->) :: Scanner a -> (a -> b) -> Scanner b
+(>->) p k cs = 
   case p cs of
     Nothing -> Nothing
     Just(a,cs') -> Just(k a, cs')
@@ -56,29 +63,35 @@ convert p k cs =
 cat :: (a, [a]) -> [a]
 cat (hd, tl) = hd:tl
 
+cat1 :: ([a], [a]) -> [a]
+cat1 (hd, tl) = hd++tl
+
+cat2 :: (a, a) -> [a]
+cat2 (hd, snd) = [hd , snd]
+
 -- iterate parsing until an error is met
 iter :: Scanner a -> Scanner [a]
-iter p = orParse ( convert (chainParse p (iter p)) cat ) (tuple [])
+iter p = (p # iter p) >-> cat ! tuple []
 
 -- converts a string to int. Haskell doensn't have this function, strangely
 toNum :: [Char] -> Int
 toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
 
-numberParse :: Scanner Int
-numberParse = convert (iter digitParse) toNum
+numberScan :: Scanner Int
+numberScan = (iter digitScan) >-> toNum
 
-wordParse :: Scanner String
-wordParse = iter alphaParse  
+wordScan :: Scanner String
+wordScan = iter alphaScan  
 
--- parses an identity
-identParse :: Scanner String
-identParse (c:cs) = 
-  case isAlpha c of
-        False -> Nothing
-        True -> charScan [c] cs 
-  where
-    charScan x [] = Just(x, "")
-    charScan x (c:cs) 
-      | isSpace c = Just (x, (c:cs))
-      | otherwise = charScan (x ++ [c]) cs
+
+identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
+
+opList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!"]
+
+opScan = (twoChar >-> cat2) ? (\x -> elem x opList)
+
+intScan = (((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan)
+
+-- line scan, all
+--lineScan = iter (identScan ! opList ! intScan)
 
