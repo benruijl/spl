@@ -85,7 +85,7 @@ wordScan = iter alphaScan
 
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
-opList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "="]
+opList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";"]
 
 opScan = ((twoChar >-> cat2) ? inList) ! ((char >-> (\x -> [x])) ? inList) 
   where
@@ -97,6 +97,11 @@ intScan = (((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter 
 -- line scan, space now supported
 -- lineScan "a<=528;" gets parsed correctly => I think that probably op2ExpScan would be better but what does (/="") mean
 lineScan = iter((token identScan) ! (token opScan) ! (token intScan) ? (/=""))
+
+scanSuccess :: Maybe (a, String) -> Maybe (a, String)
+scanSuccess (Just(x,"")) = Just(x,"")
+scanSuccess (Just(_,xs)) = error $ "Scan error at '" ++ xs ++ "'"
+scanSuccess Nothing = fail "Scan error: could not read anything."
 
 -- functions added now:
 
