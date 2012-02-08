@@ -1,7 +1,12 @@
+module Scanner where
+
 -- ?: Scan with p and check the parsed value with b, p ? b
 -- !: Scan with a, if fails, parse with b, a ! b
 -- #: Scan with a, parse leftovers with b, a # b
 -- >->: Convert parsed type a to b
+-- >>>: Extract a parsers result
+-- >>|: Sequence operator that discards the first result
+-- >>-: Discards second result
 
 import Char
 
@@ -37,6 +42,7 @@ infixl 3 !
 
 alphaScan = char ? isAlpha
 digitScan = char ? isDigit
+spaceScan = char ? isSpace  
 alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x  || x == '_')
 matchChar c = char ? (==c)
@@ -74,16 +80,8 @@ cat2 (hd, snd) = [hd , snd]
 iter :: Scanner a -> Scanner [a]
 iter p = (p # iter p) >-> cat ! tuple []
 
--- converts a string to int. Haskell doensn't have this function, strangely
-toNum :: [Char] -> Int
-toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
-
-numberScan :: Scanner Int
-numberScan = (iter digitScan) >-> toNum
-
 wordScan :: Scanner String
 wordScan = iter alphaScan  
-
 
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
@@ -96,7 +94,36 @@ opScan = ((twoChar >-> cat2) ? inList) ! ((char >-> (\x -> [x])) ? inList)
 -- note: intScan returns an empty string on total failure instead of nothing
 intScan = (((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan)
 
--- line scan, space not supported. 
--- lineScan "a<=528;" gets parsed correctly
-lineScan = iter (identScan ! opScan ! (intScan ? (/="")))
+-- line scan, space now supported
+-- lineScan "a<=528;" gets parsed correctly => I think that probably op2ExpScan would be better but what does (/="") mean
+lineScan = iter((token identScan) ! (token opScan) ! (token intScan) ? (/=""))
 
+-- functions added now:
+
+-- Extract a parsers result
+infix 4 >>>
+(>>>) :: Scanner a -> (a -> Scanner b) -> Scanner b
+(m >>> k) cs = case m cs of
+	Nothing -> Nothing
+	Just (a, cs') -> k a cs'
+
+-- Sequence operator that discards the first result 
+infixl 6 >>| 
+(>>|) :: Scanner a -> Scanner b -> Scanner b
+(m >>| n) cs = case m cs of
+    Nothing -> Nothing
+    Just (a, cs') -> case n cs' of
+        Nothing -> Nothing
+        Just (b, cs2) -> Just(b, cs2) 
+
+infixl 6 >>-  -- Discards second result
+(>>-) :: Scanner a -> Scanner b -> Scanner a
+(m >>- n) cs = case m cs of
+    Nothing -> Nothing
+    Just (a, cs') -> case n cs' of
+        Nothing -> Nothing
+        Just (b, cs2) -> Just(a, cs2)
+
+-- discards the white spaces
+token :: Scanner a -> Scanner a
+token = (>>- iter spaceScan)

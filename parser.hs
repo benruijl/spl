@@ -1,15 +1,29 @@
 module Parser where
 
+import Scanner
 import Grammar
+import Char
 
--- t1 = Node 10 Tip Tip
--- t2 = Node 17 (Node 12 (Node 5 Tip (leaf 8)) (leaf 15))
---              (Node 115
---                    (Node 32 (leaf 30) (Node 46 Tip (leaf 57)))
---                    (leaf 163))
--- main = do pict t2
+type Parser a = String -> Maybe (a, String)
 
+-- converts a string to int. Haskell doensn't have this function, strangely
+toNum :: [Char] -> Int
+toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
 
--- probably need for overloaded conversion function 'parse' that pattern matches on arguments like toTuple (x,y) = Tuple x y but may not be so compositional;
--- in the end should declare Prog =... and main = do Prog;
--- for flexibility grammar should be placed in a separate file but not a .txt file in order to be properly checked by haskell for type consistency;
+numberScan :: Scanner Int
+numberScan = (iter digitScan) >-> toNum
+
+--var :: Parser Exp
+--var = token wordScan # token opScan # token numberScan >-> buildVarDecl
+
+mulOp = token (matchChar '*') >-> (\_ -> (*))
+	! token (matchChar '/') >-> (\_ -> (/))
+
+addOp = token (matchChar '+') >-> (\_ -> (+))
+	! token (matchChar '-')  >-> (\_ -> (-))
+
+op = mulOp ! addOp	
+
+--exp = numberScan op numberScan 
+	
+buildOp e (op, e') = op e e'
