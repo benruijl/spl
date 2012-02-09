@@ -1,9 +1,9 @@
-
+module Scanner where
 -- ?: Scan with p and check the parsed value with b, p ? b
 -- !: Scan with a, if fails, parse with b, a ! b
 -- #: Scan with a, parse leftovers with b, a # b
 -- >->: Convert parsed type a to b
--- >>>: Extract a parsers result
+-- >>>: Extract a scanners result
 -- >>|: Sequence operator that discards the first result
 -- >>-: Discards second result
 
@@ -11,7 +11,7 @@ import Char
 import System.Environment
 import Control.Monad
 
--- parser converts a string to a tuple of what's parsed and the remaining string
+-- scanner converts a string to a tuple of what's parsed and the remaining string
 type Scanner a = String -> Maybe (a, String)
 
 -- Get character
@@ -33,7 +33,7 @@ infixl 7 ?
      Nothing -> Nothing -- parsing failed
      Just (c, cs) -> if b c then Just(c,cs) else Nothing
 
--- A or B: Tries parsing with parser A. If it succeeds, it returns. Else parser B is tried. 
+-- A or B: Tries parsing with scanner A. If it succeeds, it returns. Else scanner B is tried. 
 infixl 3 !
 (!) :: Scanner a -> Scanner a -> Scanner a
 (!) a b cs = 
@@ -48,7 +48,7 @@ alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x  || x == '_')
 matchChar c = char ? (==c)
 
--- feed the result from parser A to parser B (chainScan)
+-- feed the result from scanner A to scanner B (chainScan)
 infixl 6 #
 (#) :: Scanner a -> Scanner b -> Scanner (a,b)
 (#) a b cs =
@@ -112,7 +112,7 @@ main = do
 
 -- functions added now:
 
--- Extract a parsers result
+-- Extract a scanners result
 infix 4 >>>
 (>>>) :: Scanner a -> (a -> Scanner b) -> Scanner b
 (m >>> k) cs = case m cs of

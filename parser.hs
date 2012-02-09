@@ -4,7 +4,7 @@ import Scanner
 import Grammar
 import Char
 
-type Parser a = String -> Maybe (a, String)
+type Parser a = Scanner a
 
 -- converts a string to int. Haskell doensn't have this function, strangely
 toNum :: [Char] -> Int
@@ -13,17 +13,31 @@ toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
 numberScan :: Scanner Int
 numberScan = (iter digitScan) >-> toNum
 
+boolScan :: Scanner Bool
+trueScan = wordScan ? (=="True") >-> (\_-> True)
+falseScan = wordScan ?(=="False") >-> (\_-> False)
+boolScan = trueScan ! falseScan 
 --var :: Parser Exp
 --var = token wordScan # token opScan # token numberScan >-> buildVarDecl
 
-mulOp = token (matchChar '*') >-> (\_ -> (*))
-	! token (matchChar '/') >-> (\_ -> (/))
+opAdd = token (matchChar '+') >-> (\_ -> Add)
+opSub = token (matchChar '-') >-> (\_ -> Sub)
+opMult = token (matchChar '*') >-> (\_ -> Mult)
+opDiv  = token (matchChar '/') >-> (\_ -> Div)
+opMod = token (matchChar '%') >-> (\_ -> Mod)
+opEquals = token (matchChar '=') # token (matchChar '=') >-> (\_ -> Equals)
+opLess = token (matchChar '<') >-> (\_ -> Less)
+opMore = token (matchChar '>') >-> (\_ -> More)
+opLessEq = token (matchChar '<') # token (matchChar '=') >-> (\_ -> LessEq)
+opMoreEq = token (matchChar '>') # token (matchChar '=') >-> (\_ -> MoreEq)
+opNotEq = token (matchChar '!') # token (matchChar '=') >-> (\_ -> NotEq)
+opAnd = token (matchChar '&') # token (matchChar '=') >-> (\_ -> And)
+opOr = token (matchChar '|') # token (matchChar '|') >-> (\_ -> Or)
+opAppCons = token (matchChar ':') >-> (\_ -> AppCons)
+opNegate = token (matchChar '!') >-> (\_ -> Negate)
+opUnitaryMinus = token (matchChar '-') >-> (\_ -> UnitaryMinus)
 
-addOp = token (matchChar '+') >-> (\_ -> (+))
-	! token (matchChar '-')  >-> (\_ -> (-))
+op2 = opAdd ! opSub  ! opMult ! opDiv ! opMod ! opEquals ! opLess ! opMore ! opLessEq ! opMoreEq ! opNotEq ! opAnd ! opOr ! opAppCons
+op1 = opNegate ! opUnitaryMinus 
 
-op = mulOp ! addOp	
-
---exp = numberScan op numberScan 
-	
 buildOp e (op, e') = op e e'

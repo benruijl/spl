@@ -6,19 +6,17 @@ data Prog = Decl
 data Decl = VarDecl | FunDecl
 
 type VarDecl = ((Type, Id), Exp)
--- type FunDecl
 
- -- use tuple of Type and Id as arguments?
- -- bit strange that Type can also be Id
 type FArgs = [(Type, Id)]
 type ActArgs = [Exp]
 type FunCall = (Id,[ActArgs])
 
-data Exp = Exp Op2 Exp | Op1 Exp | FunCall | RetType -- is ret type ok in this case otherwise multiple declaration of the same Type?
+data Exp = Id | Exp Op2 Exp | Op1 Exp | Int | Bool | FunCall | List | Tuple Exp Exp -- refers to the concrete value assigned to a 'Type'
 data RetType = Type | Void
-data Type = Num Int | Bool | Tuple Type Type | List Type | Id
+data Type = Id_ Id | Int_ Int | Bool_ Bool | Tuple_ Type Type | List_ Type -- refers to how you name your type in your language
 
--- data Stmt
+-- Stmt is not a type !
+-- FunDecl is not a type !
 
 data Op1 = Negate | UnitaryMinus
-data Op2 = Add | Sub | Mult | Div | Mod | Equals | Less | More | LessEq | MoreEq | Not | And | Or | Concat 
+data Op2 = Add | Sub | Mult | Div | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons
