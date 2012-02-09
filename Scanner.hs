@@ -1,4 +1,3 @@
-module Scanner where
 
 -- ?: Scan with p and check the parsed value with b, p ? b
 -- !: Scan with a, if fails, parse with b, a ! b
@@ -9,6 +8,8 @@ module Scanner where
 -- >>-: Discards second result
 
 import Char
+import System.Environment
+import Control.Monad
 
 -- parser converts a string to a tuple of what's parsed and the remaining string
 type Scanner a = String -> Maybe (a, String)
@@ -42,7 +43,7 @@ infixl 3 !
 
 alphaScan = char ? isAlpha
 digitScan = char ? isDigit
-spaceScan = char ? isSpace  
+spaceScan = (char ? isSpace) ! (matchChar '\t')
 alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x  || x == '_')
 matchChar c = char ? (==c)
@@ -85,7 +86,7 @@ wordScan = iter alphaScan
 
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
-opList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";"]
+opList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";", "}", "{"]
 
 opScan = ((twoChar >-> cat2) ? inList) ! ((char >-> (\x -> [x])) ? inList) 
   where
@@ -94,14 +95,20 @@ opScan = ((twoChar >-> cat2) ? inList) ! ((char >-> (\x -> [x])) ? inList)
 -- note: intScan returns an empty string on total failure instead of nothing
 intScan = (((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan)
 
--- line scan, space now supported
--- lineScan "a<=528;" gets parsed correctly => I think that probably op2ExpScan would be better but what does (/="") mean
-lineScan = iter((token identScan) ! (token opScan) ! (token intScan) ? (/=""))
+-- line scan
+lineScan = trim $ iter((token identScan) ! (token opScan) ! (token intScan) ? (/=""))
 
 scanSuccess :: Maybe (a, String) -> Maybe (a, String)
 scanSuccess (Just(x,"")) = Just(x,"")
 scanSuccess (Just(_,xs)) = error $ "Scan error at '" ++ xs ++ "'"
 scanSuccess Nothing = fail "Scan error: could not read anything."
+
+-- read a file
+main = do
+   [s] <- getArgs
+   f <- readFile s
+   let res =  map (scanSuccess . lineScan) (lines f)
+   putStrLn $ show res
 
 -- functions added now:
 
@@ -129,6 +136,11 @@ infixl 6 >>-  -- Discards second result
         Nothing -> Nothing
         Just (b, cs2) -> Just(a, cs2)
 
--- discards the white spaces
+-- discards the white spaces after the parsed result
 token :: Scanner a -> Scanner a
-token = (>>- iter spaceScan)
+token x = x >>- iter spaceScan
+
+trim x cs = case iter spaceScan cs of
+  Just(_, cs') -> x cs'
+  Nothing -> Nothing
+
