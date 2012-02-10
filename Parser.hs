@@ -1,7 +1,7 @@
 module Parser where
 
 import Scanner
-import Grammar
+import AST
 import Char
 
 type Parser a = Scanner a
