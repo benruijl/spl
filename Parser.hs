@@ -42,7 +42,8 @@ op1 = opNegate ! opUnitaryMinus
 
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
-expParse = wordScan >-> (\x -> Id x) -- placeholder for now
+expParse = wordScan >-> (\x -> Id x) -- placeholder for now, exp has left recursion
+
 stmtParse = curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
 
 curlyParse = matchChar '{' >>| stmtParse >>- matchChar '}'
@@ -61,5 +62,12 @@ assignParse = identScan >>- (matchChar '=') # expParse >>- parseEnd >-> (\(x,y) 
 whileParse = (wordScan ? (=="while")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(x,y) -> While x y)
 
 returnParse = token (wordScan ? (=="return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
+
+-- not parsing custom type id yet, not sure why we should
+typeParse = read "int" >-> (\_ -> Int_) ! read "bool" >-> (\_ -> Bool_) ! parseTuple ! parseList
+    where
+    parseTuple = matchChar '(' >>| typeParse >>- matchChar ',' # typeParse >>- matchChar ')' >-> (\(x,y) -> Tuple_ x y)
+    parseList = matchChar '[' >>| typeParse >>- matchChar ']' >-> (\x -> List_ x)
+    read x =  token $ wordScan ? (==x)
 
 parseEnd = matchChar ';'
