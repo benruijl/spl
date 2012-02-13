@@ -43,12 +43,23 @@ op1 = opNegate ! opUnitaryMinus
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
 expParse = wordScan >-> (\x -> Id x) -- placeholder for now
-stmtParse = ifParse ! assignParse
+stmtParse = curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
+
+curlyParse = matchChar '{' >>| stmtParse >>- matchChar '}'
 
 ifParse :: Parser Stmt
-ifParse = (wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >>- parseEnd >-> (\(x,y) -> If x y) -- else not supported yet
+ifParse = (wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(x,y) -> If x y)
+
+-- todo: merge with ifParse to prevent reparsing
+ifElseParse :: Parser Stmt
+ifElseParse = ifParse >>- (wordScan ? (=="else")) # stmtParse >-> (\(If x y,z) -> IfElse x y z)
+
 
 assignParse :: Parser Stmt
 assignParse = identScan >>- (matchChar '=') # expParse >>- parseEnd >-> (\(x,y) -> Assign x y)
+
+whileParse = (wordScan ? (=="while")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(x,y) -> While x y)
+
+returnParse = token (wordScan ? (=="return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
 
 parseEnd = matchChar ';'
