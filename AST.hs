@@ -11,12 +11,13 @@ type FArgs = [(Type, Id)]
 type ActArgs = [Exp]
 type FunCall = (Id,[ActArgs])
 
-data Exp = Id | Exp Op2 Exp | Op1 Exp | Int | Bool | FunCall | List | Tuple Exp Exp -- refers to the concrete value assigned to a 'Type'
+-- TODO: fix, left recursive
+data Exp = Id Id | Exp Op2 Exp | Op1 Exp | Int | Bool | FunCall | List | Tuple Exp Exp deriving (Show) -- refers to the concrete value assigned to a 'Type'
 data RetType = Type | Void
 data Type = Id_ Id | Int_ Int | Bool_ Bool | Tuple_ Type Type | List_ Type -- refers to how you name your type in your language
 
--- Stmt is not a type !
--- FunDecl is not a type !
+data Stmt = If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp deriving (Show)
 
-data Op1 = Negate | UnitaryMinus
-data Op2 = Add | Sub | Mult | Div | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons
+
+data Op1 = Negate | UnitaryMinus deriving (Show)
+data Op2 = Add | Sub | Mult | Div | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons deriving (Show)

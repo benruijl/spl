@@ -31,13 +31,24 @@ opMore = token (matchChar '>') >-> (\_ -> More)
 opLessEq = token (matchChar '<') # token (matchChar '=') >-> (\_ -> LessEq)
 opMoreEq = token (matchChar '>') # token (matchChar '=') >-> (\_ -> MoreEq)
 opNotEq = token (matchChar '!') # token (matchChar '=') >-> (\_ -> NotEq)
-opAnd = token (matchChar '&') # token (matchChar '=') >-> (\_ -> And)
+opAnd = token (matchChar '&') # token (matchChar '&') >-> (\_ -> And)
 opOr = token (matchChar '|') # token (matchChar '|') >-> (\_ -> Or)
 opAppCons = token (matchChar ':') >-> (\_ -> AppCons)
 opNegate = token (matchChar '!') >-> (\_ -> Negate)
 opUnitaryMinus = token (matchChar '-') >-> (\_ -> UnitaryMinus)
 
-op2 = opAdd ! opSub  ! opMult ! opDiv ! opMod ! opEquals ! opLess ! opMore ! opLessEq ! opMoreEq ! opNotEq ! opAnd ! opOr ! opAppCons
+op2 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opAdd ! opSub  ! opMult ! opDiv ! opMod ! opLess ! opMore ! opAnd ! opOr ! opAppCons
 op1 = opNegate ! opUnitaryMinus 
 
-buildOp e (op, e') = op e e'
+identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
+
+expParse = wordScan >-> (\x -> Id x) -- placeholder for now
+stmtParse = ifParse ! assignParse
+
+ifParse :: Parser Stmt
+ifParse = (wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >>- parseEnd >-> (\(x,y) -> If x y) -- else not supported yet
+
+assignParse :: Parser Stmt
+assignParse = identScan >>- (matchChar '=') # expParse >>- parseEnd >-> (\(x,y) -> Assign x y)
+
+parseEnd = matchChar ';'
