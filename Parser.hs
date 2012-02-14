@@ -42,10 +42,19 @@ op1 = opNegate ! opUnitaryMinus
 
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
-expParse = wordScan >-> (\x -> Id x) -- placeholder for now, exp has left recursion
+expParse = idParse
+   where
+    idParse :: Parser Exp
+    idParse = exp2Parse (identScan >-> (\x -> Id x))  --- >-> (\(x,(o,y)) -> Op2_ o x y) 
+    exp2Parse :: Parser Exp -> Parser Exp
+    exp2Parse x = x ! (\l -> (op2Parse l) ! (tuple l))
+    op2Parse :: Parser Exp
+    op2Parse = op2 # expParse # exp2Parse
+    
 
 stmtParse = curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
 
+-- TODO: support for multiple statements
 curlyParse = matchChar '{' >>| stmtParse >>- matchChar '}'
 
 ifParse :: Parser Stmt
