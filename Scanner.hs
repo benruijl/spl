@@ -57,6 +57,16 @@ infixl 6 #
         Nothing -> Nothing
         Just(q,cs'') -> Just((c,q),cs'')
 
+infixr 6 /\
+(/\) :: Scanner a -> (a -> Scanner b) -> Scanner b
+(/\) p q cs = case p cs of
+	Nothing -> Nothing
+	Just (c,cs') -> q c cs'
+
+infix 6 /?\
+(/?\) :: Parser a -> (a -> Parser a) -> Parser a
+(/?\) op1 op2 = op1 /\ (\l -> (op2 l) ! (tuple l))
+
 -- converts a parsed expression to another type
 infixl 5 >->
 (>->) :: Scanner a -> (a -> b) -> Scanner b

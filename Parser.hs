@@ -45,11 +45,9 @@ identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 expParse = idParse
    where
     idParse :: Parser Exp
-    idParse = exp2Parse (identScan >-> (\x -> Id x))  --- >-> (\(x,(o,y)) -> Op2_ o x y) 
-    exp2Parse :: Parser Exp -> Parser Exp
-    exp2Parse x = x ! (\l -> (op2Parse l) ! (tuple l))
-    op2Parse :: Parser Exp
-    op2Parse = op2 # expParse # exp2Parse
+    idParse = (identScan >-> (\x -> Id x)) /?\ op2Parse
+    op2Parse :: Exp -> Parser Exp
+    op2Parse x = (op2 # expParse >-> (\(o,y) -> Op2_ o x y))  /?\ op2Parse
     
 
 stmtParse = curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
