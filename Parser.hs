@@ -44,13 +44,19 @@ identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
 intScan = ((((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan) ? (/="")) >-> (\x -> Int (toNum x))
 
-expParse = (boolParse ! idParse ! intScan) /?\ op2Parse
+expParse = (boolParse ! tupleParse ! parParse ! idParse ! intScan ! emptyListParse) /?\ op2Parse
    where
     idParse :: Parser Exp
     idParse = (identScan >-> (\x -> Id x))
     boolParse = wordScan ? (=="true") >-> (\x -> Bool True) ! wordScan ? (=="false") >-> (\x -> Bool False)
     op2Parse :: Exp -> Parser Exp
     op2Parse x = (op2 # expParse >-> (\(o,y) -> Op2_ o x y))  /?\ op2Parse
+    emptyListParse :: Parser Exp
+    emptyListParse = matchChar '[' >>- matchChar ']' >-> (\_ -> EmptyList)
+    tupleParse :: Parser Exp
+    tupleParse = matchChar '(' >>| expParse >>- matchChar ',' # expParse >>- matchChar ')' >-> (\(x,y) -> Tuple x y)
+    parParse :: Parser Exp
+    parParse = matchChar '(' >>| expParse >>- matchChar ')' 
     
 
 stmtParse = curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse

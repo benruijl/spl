@@ -12,7 +12,7 @@ type ActArgs = [Exp]
 type FunCall = (Id,[ActArgs])
 
 -- TODO: fix, left recursive
-data Exp = Id Id | Op2_ Op2 Exp Exp | Op1 Exp | Int Int | Bool Bool | FunCall | List | Tuple Exp Exp deriving (Show) -- refers to the concrete value assigned to a 'Type'
+data Exp = Id Id | Op2_ Op2 Exp Exp | Op1 Exp | Int Int | Bool Bool | FunCall | EmptyList | Tuple Exp Exp deriving (Show) -- refers to the concrete value assigned to a 'Type'
 
 --data Exp = Id Id Exp' | Op1 Exp' | Int Exp' | Bool Exp' | FunCall Exp' | List Exp' | Tuple Exp' Exp' Exp' deriving (Show)
 --data Exp' = epsilon | Op2 Exp Exp'
