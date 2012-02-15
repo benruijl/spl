@@ -64,7 +64,7 @@ infixr 6 /\
 	Just (c,cs') -> q c cs'
 
 infix 6 /?\
-(/?\) :: Parser a -> (a -> Parser a) -> Parser a
+(/?\) :: Scanner a -> (a -> Scanner a) -> Scanner a
 (/?\) op1 op2 = op1 /\ (\l -> (op2 l) ! (tuple l))
 
 -- converts a parsed expression to another type
