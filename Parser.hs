@@ -42,7 +42,10 @@ op1 = opNegate ! opUnitaryMinus
 
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
-expParse = idParse
+-- note: intScan returns an empty string on total failure instead of nothing
+intScan = ((((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan) ? (/="")) >-> (\x -> Int (toNum x))
+
+expParse = idParse ! intScan /?\ op2Parse
    where
     idParse :: Parser Exp
     idParse = (identScan >-> (\x -> Id x)) /?\ op2Parse

@@ -13,8 +13,6 @@ tokScan = ((twoChar >-> cat2) ? inList) ! ((char >-> (\x -> [x])) ? inList)
   where
   inList x = elem x tokList
 
--- note: intScan returns an empty string on total failure instead of nothing
-intScan = (((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan)
 
 -- line scan
 lineScan = trim $ iter((token identScan) ! (token tokScan) ! (token intScan) ? (/=""))
