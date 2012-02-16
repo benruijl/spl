@@ -76,8 +76,7 @@ expParse = (boolParse ! tupleParse ! parParse ! idParse ! intScan ! emptyListPar
 
 stmtParse = curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
 
--- TODO: support for multiple statements
-curlyParse = matchChar '{' >>| stmtParse >>- matchChar '}'
+curlyParse = matchChar '{' >>| iter stmtParse >>- matchChar '}' >-> (\x -> List x)
 
 ifParse :: Parser Stmt
 ifParse = (wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(x,y) -> If x y)

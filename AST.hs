@@ -19,7 +19,7 @@ data Exp = Id Id | Op2_ Op2 Exp Exp | Op1 Exp | Int Int | Bool Bool | FunCall | 
 data RetType = Type Type | Void deriving (Show)
 data Type = Id_ | Int_ | Bool_ | Tuple_ Type Type | List_ Type  deriving (Show)
 
-data Stmt = If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp deriving (Show)
+data Stmt = List [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp deriving (Show)
 
 
 data Op1 = Negate | UnitaryMinus deriving (Show)
