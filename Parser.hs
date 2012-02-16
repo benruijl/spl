@@ -44,6 +44,12 @@ identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
 intScan = ((((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan) ? (/="")) >-> (\x -> Int (toNum x))
 
+retTypeParse :: Parser RetType
+retTypeParse = typeParse >-> (\x -> Type x) ! wordScan ? (=="void") >-> (\x -> Void)
+
+varDeclParse :: Parser VarDecl
+varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
+
 expParse = (boolParse ! tupleParse ! parParse ! idParse ! intScan ! emptyListParse) /?\ op2Parse
    where
     idParse :: Parser Exp

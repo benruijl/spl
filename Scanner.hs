@@ -41,7 +41,7 @@ infixl 3 !
 
 alphaScan = char ? isAlpha
 digitScan = char ? isDigit
-spaceScan = (char ? isSpace) ! (matchChar '\t')
+spaceScan = (char ? isSpace) ! (matchChar '\t') ! (matchChar '\r') ! (matchChar '\n')
 alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x  || x == '_')
 matchChar c = char ? (==c)

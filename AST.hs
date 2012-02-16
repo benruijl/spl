@@ -2,10 +2,10 @@ module AST where
 
 type Id = String
 
-data Prog = Decl
-data Decl = VarDecl | FunDecl
+data Prog = Decl deriving (Show)
+data Decl = VarDecl | FunDecl deriving (Show)
 
-type VarDecl = ((Type, Id), Exp)
+data VarDecl = VD Type Id Exp deriving (Show)
 
 type FArgs = [(Type, Id)]
 type ActArgs = [Exp]
@@ -18,7 +18,7 @@ data Exp = Id Id | Op2_ Op2 Exp Exp | Op1 Exp | Int Int | Bool Bool | FunCall | 
 --data Exp' = epsilon | Op2 Exp Exp'
 
 
-data RetType = Type | Void
+data RetType = Type Type | Void deriving (Show)
 data Type = Id_ | Int_ | Bool_ | Tuple_ Type Type | List_ Type  deriving (Show)
 
 data Stmt = If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp deriving (Show)
