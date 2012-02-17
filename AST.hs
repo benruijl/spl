@@ -11,9 +11,9 @@ data FunDecl = FD RetType Id FArgs [VarDecl] [Stmt] deriving (Show)
 
 type FArgs = [(Type, Id)]
 type ActArgs = [Exp]
-type FunCall = (Id,[ActArgs])
+type FunCall = (Id, ActArgs)
 
-data Exp = Id Id | Op2_ Op2 Exp Exp | Op1 Exp | Int Int | Bool Bool | FunCall | EmptyList | Tuple Exp Exp deriving (Show) -- refers to the concrete value assigned to a 'Type'
+data Exp = Id Id | Op2_ Op2 Exp Exp | Op1 Exp | Int Int | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp deriving (Show) -- refers to the concrete value assigned to a 'Type'
 
 
 data RetType = Type Type | Void deriving (Show)

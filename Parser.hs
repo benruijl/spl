@@ -51,6 +51,12 @@ fArgsParse = ((token typeParse # identScan) >-> (\x -> [x])) /?\ (\x -> (matchCh
 funDeclParse :: Parser FunDecl
 funDeclParse = (token retTypeParse # identScan >>- (matchChar '(') # (fArgsParse ! tuple []) >>- (matchChar ')') >>- (matchChar '{') # (iter varDeclParse) # (iter stmtParse) >>- (matchChar '}')) >-> (\((((t,i),a),v),s) -> FD t i a v s)
 
+funCallParse :: Parser FunCall
+funCallParse = identScan >>- (matchChar '(') # (actArgsParse ! tuple []) >>- (matchChar ')')
+
+actArgsParse :: Parser ActArgs
+actArgsParse = (expParse >-> (\x -> [x])) /?\ (\x -> (matchChar ',') >>| actArgsParse >-> (\y -> x ++ y))
+
 retTypeParse :: Parser RetType
 retTypeParse = typeParse >-> (\x -> Type x) ! wordScan ? (=="void") >-> (\x -> Void)
 
@@ -59,8 +65,9 @@ varDeclParse :: Parser VarDecl
 varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
 
 -- TODO: add operator precedence by splitting / and * operations into factors
-expParse = (boolParse ! tupleParse ! parParse ! idParse ! intScan ! emptyListParse) /?\ op2Parse
+expParse = (fcParse ! boolParse ! tupleParse ! parParse ! idParse ! intScan ! emptyListParse) /?\ op2Parse
    where
+    fcParse = funCallParse >-> (\x -> FunCall x)
     idParse :: Parser Exp
     idParse = (identScan >-> (\x -> Id x))
     boolParse = wordScan ? (=="true") >-> (\x -> Bool True) ! wordScan ? (=="false") >-> (\x -> Bool False)
@@ -74,7 +81,7 @@ expParse = (boolParse ! tupleParse ! parParse ! idParse ! intScan ! emptyListPar
     parParse = matchChar '(' >>| expParse >>- matchChar ')' 
     
 
-stmtParse = curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
+stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
 
 curlyParse = matchChar '{' >>| iter stmtParse >>- matchChar '}' >-> (\x -> List x)
 
