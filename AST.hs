@@ -16,7 +16,7 @@ type FunCall = (Id, ActArgs)
 data Exp = ExpOp_ ExpOp Exp Term | Term_ Term | Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp deriving (Show) -- refers to the concrete value assigned to a 'Type'
 
 data Term = TermOp TermOp Term Factor | Factor Factor deriving (Show)
-data Factor = Int Int | Id Id deriving (Show)
+data Factor = Int Int | Id Id | Exp_ Exp deriving (Show)
 
 
 data RetType = Type Type | Void deriving (Show)

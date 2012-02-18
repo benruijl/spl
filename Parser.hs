@@ -67,7 +67,8 @@ retTypeParse = typeParse >-> (\x -> Type x) ! wordScan ? (=="void") >-> (\x -> V
 varDeclParse :: Parser VarDecl
 varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
 
-expParse = (fcParse ! tParse ! boolParse ! tupleParse ! parParse ! emptyListParse) /?\ op2Parse
+-- FIXME: expression parser is always right recursive
+expParse = (fcParse ! tParse ! boolParse ! tupleParse ! emptyListParse) /?\ op2Parse
    where
     tParse = termParse >-> (\x -> Term_ x)
     fcParse = funCallParse >-> (\x -> FunCall x)
@@ -78,8 +79,6 @@ expParse = (fcParse ! tParse ! boolParse ! tupleParse ! parParse ! emptyListPars
     emptyListParse = matchChar '[' >>- matchChar ']' >-> (\_ -> EmptyList)
     tupleParse :: Parser Exp
     tupleParse = matchChar '(' >>| expParse >>- matchChar ',' # expParse >>- matchChar ')' >-> (\(x,y) -> Tuple x y)
-    parParse :: Parser Exp
-    parParse = matchChar '(' >>| expParse >>- matchChar ')'
     
 termParse :: Parser Term
 termParse = (factorParse >-> (\x -> Factor x)) /?\ term2Parse
@@ -87,7 +86,7 @@ termParse = (factorParse >-> (\x -> Factor x)) /?\ term2Parse
    term2Parse :: Term -> Parser Term
    term2Parse x = (term # factorParse >-> (\(o,y) -> TermOp o x y))  /?\ term2Parse
    factorParse :: Parser Factor
-   factorParse = (identScan >-> (\x -> Id x)) ! intScan
+   factorParse = (identScan >-> (\x -> Id x)) ! intScan ! (matchChar '(' >>| expParse >>- matchChar ')' >-> (\x -> Exp_ x))
     
 
 stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
