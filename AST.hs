@@ -13,7 +13,10 @@ type FArgs = [(Type, Id)]
 type ActArgs = [Exp]
 type FunCall = (Id, ActArgs)
 
-data Exp = Id Id | Op2_ Op2 Exp Exp | Op1 Exp | Int Int | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp deriving (Show) -- refers to the concrete value assigned to a 'Type'
+data Exp = ExpOp_ ExpOp Exp Term | Term_ Term | Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp deriving (Show) -- refers to the concrete value assigned to a 'Type'
+
+data Term = TermOp TermOp Term Factor | Factor Factor deriving (Show)
+data Factor = Int Int | Id Id deriving (Show)
 
 
 data RetType = Type Type | Void deriving (Show)
@@ -23,4 +26,7 @@ data Stmt = List [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | 
 
 
 data Op1 = Negate | UnitaryMinus deriving (Show)
-data Op2 = Add | Sub | Mult | Div | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons deriving (Show)
+
+-- TODO: find out which belongs where
+data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons deriving (Show)
+data TermOp =  Mult | Div deriving (Show)

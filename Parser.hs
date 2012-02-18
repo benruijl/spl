@@ -37,7 +37,10 @@ opAppCons = token (matchChar ':') >-> (\_ -> AppCons)
 opNegate = token (matchChar '!') >-> (\_ -> Negate)
 opUnitaryMinus = token (matchChar '-') >-> (\_ -> UnitaryMinus)
 
-op2 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opAdd ! opSub  ! opMult ! opDiv ! opMod ! opLess ! opMore ! opAnd ! opOr ! opAppCons
+-- TODO: put in good category
+op2 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opAdd ! opSub ! opMod ! opLess ! opMore ! opAnd ! opOr ! opAppCons
+term = opMult ! opDiv
+
 op1 = opNegate ! opUnitaryMinus 
 
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
@@ -64,21 +67,27 @@ retTypeParse = typeParse >-> (\x -> Type x) ! wordScan ? (=="void") >-> (\x -> V
 varDeclParse :: Parser VarDecl
 varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
 
--- TODO: add operator precedence by splitting / and * operations into factors
-expParse = (fcParse ! boolParse ! tupleParse ! parParse ! idParse ! intScan ! emptyListParse) /?\ op2Parse
+expParse = (fcParse ! tParse ! boolParse ! tupleParse ! parParse ! emptyListParse) /?\ op2Parse
    where
+    tParse = termParse >-> (\x -> Term_ x)
     fcParse = funCallParse >-> (\x -> FunCall x)
-    idParse :: Parser Exp
-    idParse = (identScan >-> (\x -> Id x))
     boolParse = wordScan ? (=="true") >-> (\x -> Bool True) ! wordScan ? (=="false") >-> (\x -> Bool False)
     op2Parse :: Exp -> Parser Exp
-    op2Parse x = (op2 # expParse >-> (\(o,y) -> Op2_ o x y))  /?\ op2Parse
+    op2Parse x = (op2 # termParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ op2Parse
     emptyListParse :: Parser Exp
     emptyListParse = matchChar '[' >>- matchChar ']' >-> (\_ -> EmptyList)
     tupleParse :: Parser Exp
     tupleParse = matchChar '(' >>| expParse >>- matchChar ',' # expParse >>- matchChar ')' >-> (\(x,y) -> Tuple x y)
     parParse :: Parser Exp
-    parParse = matchChar '(' >>| expParse >>- matchChar ')' 
+    parParse = matchChar '(' >>| expParse >>- matchChar ')'
+    
+termParse :: Parser Term
+termParse = (factorParse >-> (\x -> Factor x)) /?\ term2Parse
+   where
+   term2Parse :: Term -> Parser Term
+   term2Parse x = (term # factorParse >-> (\(o,y) -> TermOp o x y))  /?\ term2Parse
+   factorParse :: Parser Factor
+   factorParse = (identScan >-> (\x -> Id x)) ! intScan
     
 
 stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
