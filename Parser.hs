@@ -67,29 +67,26 @@ retTypeParse = typeParse >-> (\x -> Type x) ! wordScan ? (=="void") >-> (\x -> V
 varDeclParse :: Parser VarDecl
 varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
 
-expParse = (fcParse ! tParse ! boolParse ! tupleParse ! emptyListParse) /?\ op2Parse 
+expParse :: Parser Exp
+expParse = termParse /?\ op2Parse 
    where
-    tParse = termParse >-> (\x -> Term_ x)
-    fcParse = funCallParse >-> (\x -> FunCall x)
-    boolParse = wordScan ? (=="true") >-> (\x -> Bool True) ! wordScan ? (=="false") >-> (\x -> Bool False)
+    -- left associative  
+    op2Parse x = ((op2 # termParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ op2Parse) ! listAddParse x
+    -- right associative
+    listAddParse x = opAppCons # (termParse /?\ listAddParse)  >-> (\(o,y) -> ExpOp_ o x y)
     
-    op2Parse :: Exp -> Parser Exp
-    op2Parse x = ((op2 # termParse >-> (\(o,y) -> ExpOp_ o x (Term_ y)))  /?\ op2Parse) ! listAddParse x
-    
-    -- right associative, but not fully working yet
-    listAddParse :: Exp -> Parser Exp
-    listAddParse x = opAppCons # ((termParse >-> (\x -> Term_ x))  /?\ listAddParse)  >-> (\(o,y) -> ExpOp_ o x y)
-    
-    emptyListParse = matchChar '[' >>- matchChar ']' >-> (\_ -> EmptyList)
-    tupleParse = matchChar '(' >>| expParse >>- matchChar ',' # expParse >>- matchChar ')' >-> (\(x,y) -> Tuple x y)
-    
-termParse :: Parser Term
-termParse = (factorParse >-> (\x -> Factor x)) /?\ term2Parse
+termParse :: Parser Exp
+termParse = factorParse /?\ term2Parse
    where
-   term2Parse :: Term -> Parser Term
-   term2Parse x = (term # factorParse >-> (\(o,y) -> TermOp o x y))  /?\ term2Parse
-   factorParse :: Parser Factor
-   factorParse = (identScan >-> (\x -> Id x)) ! intScan ! (matchChar '(' >>| expParse >>- matchChar ')' >-> (\x -> Exp_ x))
+   term2Parse x = (term # factorParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ term2Parse
+
+factorParse :: Parser Exp
+factorParse = fcParse ! boolParse ! tupleParse ! (identScan >-> (\x -> Id x)) ! intScan ! emptyListParse ! (matchChar '(' >>| expParse >>- matchChar ')')
+  where
+  emptyListParse = matchChar '[' >>- matchChar ']' >-> (\_ -> EmptyList)
+  tupleParse = matchChar '(' >>| expParse >>- matchChar ',' # expParse >>- matchChar ')' >-> (\(x,y) -> Tuple x y)
+  fcParse = funCallParse >-> (\x -> FunCall x)
+  boolParse = wordScan ? (=="true") >-> (\x -> Bool True) ! wordScan ? (=="false") >-> (\x -> Bool False)
     
 
 stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse

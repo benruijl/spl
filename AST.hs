@@ -13,11 +13,8 @@ type FArgs = [(Type, Id)]
 type ActArgs = [Exp]
 type FunCall = (Id, ActArgs)
 
--- the data structure should consist of two Exps even when the grammer splits it up into Terms
-data Exp = ExpOp_ ExpOp Exp Exp | Term_ Term | Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp deriving (Show)
-
-data Term = TermOp TermOp Term Factor | Factor Factor deriving (Show)
-data Factor = Int Int | Id Id | Exp_ Exp deriving (Show)
+-- AST structure, not the same as the grammar structure
+data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp deriving (Show)
 
 
 data RetType = Type Type | Void deriving (Show)
@@ -27,10 +24,7 @@ data Stmt = List [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | 
 
 
 data Op1 = Negate | UnitaryMinus deriving (Show)
-
--- TODO: find out which belongs where
-data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons deriving (Show)
-data TermOp =  Mult | Div deriving (Show)
+data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mult | Div deriving (Show)
 
 {-
 Order of operations:
