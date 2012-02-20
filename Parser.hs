@@ -38,7 +38,7 @@ opNegate = token (matchChar '!') >-> (\_ -> Negate)
 opUnitaryMinus = token (matchChar '-') >-> (\_ -> UnitaryMinus)
 
 -- TODO: put in good category
-op2 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opAdd ! opSub ! opMod ! opLess ! opMore ! opAnd ! opOr ! opAppCons
+op2 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opAdd ! opSub ! opMod ! opLess ! opMore ! opAnd ! opOr
 term = opMult ! opDiv
 
 op1 = opNegate ! opUnitaryMinus 
@@ -67,17 +67,20 @@ retTypeParse = typeParse >-> (\x -> Type x) ! wordScan ? (=="void") >-> (\x -> V
 varDeclParse :: Parser VarDecl
 varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
 
--- FIXME: expression parser is always right recursive
-expParse = (fcParse ! tParse ! boolParse ! tupleParse ! emptyListParse) /?\ op2Parse
+expParse = (fcParse ! tParse ! boolParse ! tupleParse ! emptyListParse) /?\ op2Parse 
    where
     tParse = termParse >-> (\x -> Term_ x)
     fcParse = funCallParse >-> (\x -> FunCall x)
     boolParse = wordScan ? (=="true") >-> (\x -> Bool True) ! wordScan ? (=="false") >-> (\x -> Bool False)
+    
     op2Parse :: Exp -> Parser Exp
-    op2Parse x = (op2 # termParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ op2Parse
-    emptyListParse :: Parser Exp
+    op2Parse x = ((op2 # termParse >-> (\(o,y) -> ExpOp_ o x (Term_ y)))  /?\ op2Parse) ! listAddParse x
+    
+    -- right associative, but not fully working yet
+    listAddParse :: Exp -> Parser Exp
+    listAddParse x = opAppCons # ((termParse >-> (\x -> Term_ x))  /?\ listAddParse)  >-> (\(o,y) -> ExpOp_ o x y)
+    
     emptyListParse = matchChar '[' >>- matchChar ']' >-> (\_ -> EmptyList)
-    tupleParse :: Parser Exp
     tupleParse = matchChar '(' >>| expParse >>- matchChar ',' # expParse >>- matchChar ')' >-> (\(x,y) -> Tuple x y)
     
 termParse :: Parser Term
