@@ -51,7 +51,7 @@ digitScan = char ? isDigit
 spaceScan = char ? isSpace ! (matchChar '\t') ! (matchChar '\r') ! (matchChar '\n')
 alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = token(char ? (\x -> isAlphaNum x  || x == '_'))   -- ONE TOKEN
-matchChar c = token(char ? (==c))  -- ONE TOKEN
+matchChar c = char ? (==c)  -- ONE TOKEN
 
 -- feed the result from scanner A to scanner B (chainScan)
 infixl 6 #
@@ -111,9 +111,7 @@ infixl 6 >>|
 (>>|) :: Scanner a -> Scanner b -> Scanner b
 (m >>| n) cs = case m cs of
     Nothing -> Nothing
-    Just (a, cs') -> case n cs' of
-        Nothing -> Nothing
-        Just (b, cs2) -> Just(b, cs2) 
+    Just (a, cs') -> n cs'
 
 infixl 6 >>-  -- Discards second result
 (>>-) :: Scanner a -> Scanner b -> Scanner a
@@ -123,13 +121,9 @@ infixl 6 >>-  -- Discards second result
         Nothing -> Nothing
         Just (b, cs2) -> Just(a, cs2)
 
--- discards the white spaces after the parsed result
+-- discards the white spaces before and after the parsed result
 token :: Scanner a -> Scanner a
-token x = (trim x) >>- iter spaceScan
-
-trim x cs = case iter spaceScan cs of
-  Just([], _) -> Nothing
-  Just(_, cs') -> x cs'
+token x = iter spaceScan >>| x >>- (iter spaceScan)
   
 tokList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";", "}", "{"]
 

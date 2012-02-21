@@ -116,10 +116,9 @@ whileParse = (wordScan ? (=="while")) >>| (matchChar '(') >>| expParse  >>- (mat
 returnParse =  (wordScan ? (=="return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
 
 -- not parsing custom type id yet, not sure why we should
-typeParse = read "int" >-> (\_ -> Int_) ! read "bool" >-> (\_ -> Bool_) ! parseTuple ! parseList
+typeParse = wordScan ? (=="int") >-> (\_ -> Int_) ! wordScan ? (=="int") >-> (\_ -> Bool_) ! parseTuple ! parseList
     where
     parseTuple = matchChar '(' >>| typeParse >>- matchChar ',' # typeParse >>- matchChar ')' >-> (\(x,y) -> Tuple_ x y)
     parseList = matchChar '[' >>| typeParse >>- matchChar ']' >-> (\x -> List_ x)
-    read x =  token $ wordScan ? (==x)
 
 parseEnd = matchChar ';'
