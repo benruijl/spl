@@ -100,11 +100,8 @@ stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyPa
 
 curlyParse = matchChar '{' >>| iter stmtParse >>- matchChar '}' >-> (\x -> List x)
 
-ifParse :: Parser Stmt
-ifParse = (wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(x,y) -> If x y)
-
 ifElseParse :: Parser Stmt
-ifElseParse = (((wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse) >>- (wordScan ? (=="else")) # stmtParse >-> (\((x,y),z) -> IfElse x y z)) ! ifParse
+ifElseParse = ((wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(e,s) -> (If e s))) /?\ \(If e s) -> (wordScan ? (=="else")) >>| stmtParse >-> (\c -> (IfElse e s c))
 
 assignParse :: Parser Stmt
 assignParse = identScan >>- (matchChar '=') # expParse >>- parseEnd >-> (\(x,y) -> Assign x y)
