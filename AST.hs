@@ -2,8 +2,8 @@ module AST where
 
 type Id = String
 
-data Prog = Decl deriving (Show)
-data Decl = VarDecl | FunDecl deriving (Show)
+type Prog = [Decl]
+data Decl = VarDecl VarDecl | FunDecl FunDecl deriving (Show)
 
 -- make a type?
 data VarDecl = VD Type Id Exp deriving (Show)
@@ -26,18 +26,6 @@ data Stmt = List [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | 
 data Op1 = Negate | UnitaryMinus deriving (Show)
 data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mult | Div deriving (Show)
 
-{-
-Order of operations:
+prettyPrint :: Prog -> [String]
+prettyPrint x = map show x
 
-infixr 9  .
-infixr 8  ^, ^^, **
-infixl 7  *, /, `quot`, `rem`, `div`, `mod`
-infixl 6  +, -
-infixr 5  :
-infix  4  ==, /=, <, <=, >=, >
-infixr 3  &&
-infixr 2  ||
-infixl 1  >>, >>=
-infixr 1  =<<
-infixr 0  $, $!, `seq`
--}

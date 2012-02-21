@@ -23,6 +23,13 @@ twoChar = char # char
 tuple :: a -> Scanner a
 tuple a cs = Just(a,cs)
 
+-- converts a string to int. Haskell doensn't have this function, strangely
+toNum :: [Char] -> Int
+toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
+
+numberScan :: Scanner Int
+numberScan = (iter digitScan) >-> toNum
+
 -- Scan and check result
 infixl 7 ?
 (?) :: (Scanner a) -> (a -> Bool) -> Scanner a
@@ -123,4 +130,10 @@ token x = x >>- iter spaceScan
 trim x cs = case iter spaceScan cs of
   Just(_, cs') -> x cs'
   Nothing -> Nothing
+  
+tokList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";", "}", "{"]
+
+tokScan = ((twoChar >-> cat2) ? inList) ! ((char >-> (\x -> [x])) ? inList) 
+  where
+  inList x = elem x tokList
 

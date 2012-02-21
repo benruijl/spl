@@ -6,19 +6,23 @@ import Char
 
 type Parser a = Scanner a
 
--- converts a string to int. Haskell doensn't have this function, strangely
-toNum :: [Char] -> Int
-toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
+{-
+Order of operations:
 
-numberScan :: Scanner Int
-numberScan = (iter digitScan) >-> toNum
+infixr 9  .
+infixr 8  ^, ^^, **
+infixl 7  *, /, `quot`, `rem`, `div`, `mod`
+infixl 6  +, -
+infixr 5  :
+infix  4  ==, /=, <, <=, >=, >
+infixr 3  &&
+infixr 2  ||
+infixl 1  >>, >>=
+infixr 1  =<<
+infixr 0  $, $!, `seq`
 
-boolScan :: Scanner Bool
-trueScan = wordScan ? (=="True") >-> (\_-> True)
-falseScan = wordScan ?(=="False") >-> (\_-> False)
-boolScan = trueScan ! falseScan 
---var :: Parser Exp
---var = token wordScan # token opScan # token numberScan >-> buildVarDecl
+TODO: implement all of them, currently only 6 and 7 are done
+-}
 
 opAdd = token (matchChar '+') >-> (\_ -> Add)
 opSub = token (matchChar '-') >-> (\_ -> Sub)
@@ -46,6 +50,9 @@ op1 = opNegate ! opUnitaryMinus
 identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 
 intScan = ((((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan) ? (/="")) >-> (\x -> Int (toNum x))
+
+progParse :: Parser Prog
+progParse = iter (funDeclParse >-> (\x -> FunDecl x) ! varDeclParse >-> (\x -> VarDecl x))
 
 fArgsParse :: Parser FArgs
 fArgsParse = ((token typeParse # identScan) >-> (\x -> [x])) /?\ (\x -> (matchChar ',') >>| fArgsParse >-> (\y -> x ++ y))
