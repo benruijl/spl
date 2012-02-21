@@ -13,9 +13,12 @@ import Char
 type Scanner a = String -> Maybe (a, String)
 
 -- Get character
+ch :: Scanner Char
+ch (c:cs) = Just(c,cs)
+ch [] = Nothing
+
 char :: Scanner Char
-char (c:cs) = Just(c,cs)
-char [] = Nothing
+char = token ch
 
 twoChar = char # char
 
@@ -125,7 +128,7 @@ infixl 6 >>-  -- Discards second result
 
 -- discards the white spaces after the parsed result
 token :: Scanner a -> Scanner a
-token x = x >>- iter spaceScan
+token x = iter spaceScan >>| x >>- iter spaceScan
 
 trim x cs = case iter spaceScan cs of
   Just(_, cs') -> x cs'

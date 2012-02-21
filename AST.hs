@@ -38,4 +38,3 @@ instance Show VarDecl where
 
 prettyPrint :: Prog -> [String]
 prettyPrint x = map show x
-
