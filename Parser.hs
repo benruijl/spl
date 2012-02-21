@@ -96,17 +96,15 @@ factorParse = fcParse ! boolParse ! tupleParse ! (identScan >-> (\x -> Id x)) ! 
   boolParse = wordScan ? (=="true") >-> (\x -> Bool True) ! wordScan ? (=="false") >-> (\x -> Bool False)
     
 
-stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! ifParse ! returnParse ! assignParse ! whileParse
+stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! returnParse ! assignParse ! whileParse
 
 curlyParse = matchChar '{' >>| iter stmtParse >>- matchChar '}' >-> (\x -> List x)
 
 ifParse :: Parser Stmt
 ifParse = (wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(x,y) -> If x y)
 
--- todo: merge with ifParse to prevent reparsing
 ifElseParse :: Parser Stmt
-ifElseParse = ifParse >>- (wordScan ? (=="else")) # stmtParse >-> (\(If x y,z) -> IfElse x y z)
-
+ifElseParse = (((wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse) >>- (wordScan ? (=="else")) # stmtParse >-> (\((x,y),z) -> IfElse x y z)) ! ifParse
 
 assignParse :: Parser Stmt
 assignParse = identScan >>- (matchChar '=') # expParse >>- parseEnd >-> (\(x,y) -> Assign x y)
