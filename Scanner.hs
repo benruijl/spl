@@ -12,12 +12,11 @@ import Char
 -- scanner converts a string to a tuple of what's parsed and the remaining string
 type Scanner a = String -> Maybe (a, String)
 
--- Get character
-char :: Scanner Char
+-- returns unfiltered character. could be a space
 char (c:cs) = Just(c,cs)
 char [] = Nothing
 
-twoChar =  token (char # char)        -- ONE TOKEN
+twoChar = token $ char # char       -- ONE TOKEN
 
 -- Returns (a,cs)
 tuple :: a -> Scanner a
@@ -48,10 +47,11 @@ infixl 3 !
 
 alphaScan = char ? isAlpha
 digitScan = char ? isDigit
-spaceScan = char ? isSpace ! (matchChar '\t') ! (matchChar '\r') ! (matchChar '\n')
+spaceScan = matchCharList "\t\r\n "
 alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = token(char ? (\x -> isAlphaNum x  || x == '_'))   -- ONE TOKEN
 matchChar c = char ? (==c)  -- ONE TOKEN
+matchCharList cs = char ? (flip elem cs)
 
 -- feed the result from scanner A to scanner B (chainScan)
 infixl 6 #
@@ -123,7 +123,7 @@ infixl 6 >>-  -- Discards second result
 
 -- discards the white spaces before and after the parsed result
 token :: Scanner a -> Scanner a
-token x = iter spaceScan >>| x >>- (iter spaceScan)
+token x = iter spaceScan >>| x >>- iter spaceScan
   
 tokList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";", "}", "{"]
 
