@@ -13,14 +13,11 @@ import Char
 type Scanner a = String -> Maybe (a, String)
 
 -- Get character
-ch :: Scanner Char
-ch (c:cs) = Just(c,cs)
-ch [] = Nothing
-
 char :: Scanner Char
-char = token ch
+char (c:cs) = Just(c,cs)
+char [] = Nothing
 
-twoChar = char # char
+twoChar =  token (char # char)        -- ONE TOKEN
 
 -- Returns (a,cs)
 tuple :: a -> Scanner a
@@ -30,8 +27,8 @@ tuple a cs = Just(a,cs)
 toNum :: [Char] -> Int
 toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
 
-numberScan :: Scanner Int
-numberScan = (iter digitScan) >-> toNum
+numberScan :: Scanner Int             -- ONE TOKEN
+numberScan = token (iter digitScan) >-> toNum
 
 -- Scan and check result
 infixl 7 ?
@@ -51,10 +48,10 @@ infixl 3 !
 
 alphaScan = char ? isAlpha
 digitScan = char ? isDigit
-spaceScan = (char ? isSpace) ! (matchChar '\t') ! (matchChar '\r') ! (matchChar '\n')
+spaceScan = char ? isSpace ! (matchChar '\t') ! (matchChar '\r') ! (matchChar '\n')
 alphaNumUnderScoreScan :: Scanner Char
-alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x  || x == '_')
-matchChar c = char ? (==c)
+alphaNumUnderScoreScan = token(char ? (\x -> isAlphaNum x  || x == '_'))   -- ONE TOKEN
+matchChar c = token(char ? (==c))  -- ONE TOKEN
 
 -- feed the result from scanner A to scanner B (chainScan)
 infixl 6 #
@@ -99,8 +96,8 @@ cat2 (hd, snd) = [hd , snd]
 iter :: Scanner a -> Scanner [a]
 iter p = (p # iter p) >-> cat ! tuple []
 
-wordScan :: Scanner String
-wordScan = iter alphaScan  
+wordScan :: Scanner String             -- ONE TOKEN
+wordScan = token(iter alphaScan)  
 
 -- Extract a scanners result
 infix 4 >>>
@@ -128,15 +125,14 @@ infixl 6 >>-  -- Discards second result
 
 -- discards the white spaces after the parsed result
 token :: Scanner a -> Scanner a
-token x = iter spaceScan >>| x >>- iter spaceScan
+token x = (trim x) >>- iter spaceScan
 
 trim x cs = case iter spaceScan cs of
+  Just([], _) -> Nothing
   Just(_, cs') -> x cs'
-  Nothing -> Nothing
   
 tokList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";", "}", "{"]
 
-tokScan = ((twoChar >-> cat2) ? inList) ! ((char >-> (\x -> [x])) ? inList) 
+tokScan = token ((twoChar >-> cat2) ? inList) ! ((char >-> (\x -> [x])) ? inList) -- ONE TOKEN
   where
   inList x = elem x tokList
-

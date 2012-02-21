@@ -24,22 +24,22 @@ infixr 0  $, $!, `seq`
 TODO: implement all of them, currently only 6 and 7 are done
 -}
 
-opAdd = token (matchChar '+') >-> (\_ -> Add)
-opSub = token (matchChar '-') >-> (\_ -> Sub)
-opMult = token (matchChar '*') >-> (\_ -> Mult)
-opDiv  = token (matchChar '/') >-> (\_ -> Div)
-opMod = token (matchChar '%') >-> (\_ -> Mod)
-opEquals = token (matchChar '=') # token (matchChar '=') >-> (\_ -> Equals)
-opLess = token (matchChar '<') >-> (\_ -> Less)
-opMore = token (matchChar '>') >-> (\_ -> More)
-opLessEq = token (matchChar '<') # token (matchChar '=') >-> (\_ -> LessEq)
-opMoreEq = token (matchChar '>') # token (matchChar '=') >-> (\_ -> MoreEq)
-opNotEq = token (matchChar '!') # token (matchChar '=') >-> (\_ -> NotEq)
-opAnd = token (matchChar '&') # token (matchChar '&') >-> (\_ -> And)
-opOr = token (matchChar '|') # token (matchChar '|') >-> (\_ -> Or)
-opAppCons = token (matchChar ':') >-> (\_ -> AppCons)
-opNegate = token (matchChar '!') >-> (\_ -> Negate)
-opUnitaryMinus = token (matchChar '-') >-> (\_ -> UnitaryMinus)
+opAdd =  (matchChar '+') >-> (\_ -> Add)
+opSub =  (matchChar '-') >-> (\_ -> Sub)
+opMult =  (matchChar '*') >-> (\_ -> Mult)
+opDiv  =  (matchChar '/') >-> (\_ -> Div)
+opMod =  (matchChar '%') >-> (\_ -> Mod)
+opEquals =  (matchChar '=') #  (matchChar '=') >-> (\_ -> Equals)
+opLess =  (matchChar '<') >-> (\_ -> Less)
+opMore =  (matchChar '>') >-> (\_ -> More)
+opLessEq =  (matchChar '<') #  (matchChar '=') >-> (\_ -> LessEq)
+opMoreEq =  (matchChar '>') #  (matchChar '=') >-> (\_ -> MoreEq)
+opNotEq =  (matchChar '!') #  (matchChar '=') >-> (\_ -> NotEq)
+opAnd =  (matchChar '&') #  (matchChar '&') >-> (\_ -> And)
+opOr =  (matchChar '|') #  (matchChar '|') >-> (\_ -> Or)
+opAppCons =  (matchChar ':') >-> (\_ -> AppCons)
+opNegate =  (matchChar '!') >-> (\_ -> Negate)
+opUnitaryMinus =  (matchChar '-') >-> (\_ -> UnitaryMinus)
 
 -- TODO: put in good category
 op2 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opAdd ! opSub ! opMod ! opLess ! opMore ! opAnd ! opOr
@@ -113,7 +113,7 @@ assignParse = identScan >>- (matchChar '=') # expParse >>- parseEnd >-> (\(x,y) 
 
 whileParse = (wordScan ? (=="while")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(x,y) -> While x y)
 
-returnParse = token (wordScan ? (=="return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
+returnParse =  (wordScan ? (=="return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
 
 -- not parsing custom type id yet, not sure why we should
 typeParse = read "int" >-> (\_ -> Int_) ! read "bool" >-> (\_ -> Bool_) ! parseTuple ! parseList
