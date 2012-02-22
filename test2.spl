@@ -1,1 +1,1 @@
-int a=5;int inc(int b){return b+1;}void main(){inc(a);}
+int a=5;int inc(int b, int c){return b+c;}void main(){inc(a,3);}

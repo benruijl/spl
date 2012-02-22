@@ -3,11 +3,6 @@ module AST where
 type Id = String
 
 type Prog = [Decl]
-
-				   -- somehow deriving (Eq) but it I change it to a data type I have something like Decls [Decl] and this changes a lot of other stuff
-                   -- here we should have at least one so I suspect (+) but I tryed to make the necesary changes in the parser
-				   -- data Prog = Decl | Decls [Decl]
-
 data Decl = VarDecl VarDecl | FunDecl FunDecl
 
 data VarDecl = VD Type Id Exp
@@ -44,7 +39,9 @@ instance Show VarDecl where
     show (VD varType ident ass) = show varType ++ " " ++ ident ++ " = " ++ show ass ++ ";"
 	
 instance Show FunDecl where
-	show (FD retType ident fArgs varDecl stmt) = "\n" ++ show retType ++ " " ++ ident ++ "(" ++ show fArgs ++ ")" ++ "\n{" ++ show varDecl ++ show stmt ++ "\n}"
+	show (FD retType ident fArgs varDecl stmt) = "\n" ++ show retType ++ " " ++ ident ++ "(" ++ showArgs ++ ")" ++ "\n{" ++ show varDecl ++ show stmt ++ "\n}"
+	 where
+	 showArgs = addsep ", " (map (\(t, i) -> show t ++ " " ++ i) fArgs) 
 	
 instance Show Stmt where 
     show (Seq stmt) = unlines $ map show stmt
