@@ -6,8 +6,7 @@ type Prog = [Decl]
 data Decl = VarDecl VarDecl | FunDecl FunDecl
 
 data VarDecl = VD Type Id Exp
-data FunDecl = FD RetType Id FArgs [VarDecl] [Stmt] -- you already declared Stmt = [Stmt] then you don't have to specify the fact that it's a list here
-
+data FunDecl = FD RetType Id FArgs [VarDecl] Stmt
 type FArgs = [(Type, Id)]
 type ActArgs = [Exp]
 type FunCall = (Id, ActArgs)
