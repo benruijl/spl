@@ -12,7 +12,7 @@ type ActArgs = [Exp]
 type FunCall = (Id, ActArgs)
 
 -- AST structure, not the same as the grammar structure
-data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp deriving (Show)
+data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1_ Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp
 
 data RetType = Type Type | Void deriving (Show)
 data Type = Id_ | Int_ | Bool_ | Tuple_ Type Type | List_ Type
@@ -37,16 +37,30 @@ instance Show VarDecl where
     show (VD varType ident ass) = show varType ++ " " ++ ident ++ " = " ++ show ass ++ ";"
 	
 instance Show FunDecl where
-	show (FD retType ident fArgs varDecl stmt) = show retType ++ " " ++ show ident ++ "(" ++ show fArgs ++ ")" ++ "\n{" ++ show varDecl ++ show stmt ++ "\n}"
+	show (FD retType ident fArgs varDecl stmt) = "\n" ++ show retType ++ " " ++ ident ++ "(" ++ show fArgs ++ ")" ++ "\n{" ++ show varDecl ++ show stmt ++ "\n}"
 	
 instance Show Stmt where 
     show (List stmt) = unlines $ map show stmt
-    show (If exp stmt) = "If(" ++ show exp ++ ")" ++ show stmt ++ ";" -- we didn't take {} into account yet
-    show (IfElse exp stmt1 stmt2) = "If(" ++ show exp ++ ")" ++ show stmt1 ++ "\nelse" ++ show stmt2 ++ ";"
-    show (While exp stmt) = "While(" ++ show exp ++ ")\n{\n\t" ++ show stmt ++ "\n}"
+    show (If exp stmt) = "If(" ++ show exp ++ ")" ++ show stmt -- we didn't take {} into account yet
+    show (IfElse exp stmt1 stmt2) = "If(" ++ show exp ++ ")" ++ show stmt1 ++ "\nelse" ++ show stmt2
+    show (While exp stmt) = "While(" ++ show exp ++ ")\n{\n\t" ++ show stmt ++ "}"
     show (Assign ident exp) = show ident ++ "=" ++ show exp ++ ";"
-    show (FunCall_ funCall) = show funCall ++ ";"
-    show (Return exp) = "return" ++ show exp ++ ";" 	
+    show (FunCall_ (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ");"
+    show (Return exp) = "return " ++ show exp ++ ";\n"
+    
+instance Show Exp where 
+   show (ExpOp_ op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
+   show (Int int) = show int
+   show (Id id) = id
+   show (Op1_ op e) = show op ++ show e
+   show (Bool bool) = show bool
+   show (FunCall (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ")"
+   show EmptyList = "[]"
+   show (Tuple e1 e2) = "(" ++ show e1 ++ "," ++ show e2 ++ ")"
+   
+addsep  :: String -> [String] -> String
+addsep _ []            =  ""
+addsep sep ws          =  foldr1 (\w s -> w ++ sep ++ s) ws
 
 prettyPrint :: Prog -> [String]
 prettyPrint x = map show x
