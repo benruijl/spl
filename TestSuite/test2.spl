@@ -6,7 +6,7 @@ int facR (int n)
      return n * facR(n-1);
 }
 
-int facI ( Int n )
+int facI ( int n )
 {
 	int r = 1;
 	while ( n > 1 )
