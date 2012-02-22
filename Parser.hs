@@ -59,7 +59,7 @@ fArgsParse = ((token typeParse # identScan) >-> (\x -> [x])) /?\ (\x -> (matchCh
 
 -- accepts empty functions. add check here or check later?
 funDeclParse :: Parser FunDecl
-funDeclParse = (token retTypeParse # identScan >>- (matchChar '(') # (fArgsParse ! tuple []) >>- (matchChar ')') >>- (matchChar '{') # (iter varDeclParse) # (iter stmtParse) >>- (matchChar '}')) >-> (\((((t,i),a),v),s) -> FD t i a v s)
+funDeclParse = (token retTypeParse # identScan >>- (matchChar '(') # (fArgsParse ! tuple []) >>- (matchChar ')') >>- (matchChar '{') # (iter varDeclParse) # (iter stmtParse) >>- (matchChar '}')) >-> (\((((t,i),a),v),s) -> FD t i a v (List s))
 
 funCallParse :: Parser FunCall
 funCallParse = identScan >>- (matchChar '(') # (actArgsParse ! tuple []) >>- (matchChar ')')

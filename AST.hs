@@ -32,7 +32,7 @@ instance Show Type where
 
 instance Show Decl where
     show (VarDecl varDecl) = show varDecl
---	show (FunDecl funDecl) = show funDecl
+    show (FunDecl funDecl) = show funDecl
 
 instance Show VarDecl where
     show (VD varType ident ass) = show varType ++ " " ++ ident ++ " = " ++ show ass ++ ";"
