@@ -40,13 +40,13 @@ instance Show FunDecl where
 	show (FD retType ident fArgs varDecl stmt) = show retType ++ " " ++ show ident ++ "(" ++ show fArgs ++ ")" ++ "\n{" ++ show varDecl ++ show stmt ++ "\n}"
 	
 instance Show Stmt where 
-    --show (List [Stmt]) = show (
-	show (If exp stmt) = "If(" ++ show exp ++ ")" ++ show stmt ++ ";" -- we didn't take {} into account yet
-	show (IfElse exp stmt1 stmt2) = "If(" ++ show exp ++ ")" ++ show stmt1 ++ "\nelse" ++ show stmt2 ++ ";"
-	show (While exp stmt) = "While(" ++ show exp ++ ")\n{" ++ show stmt ++ "\n}"
---	show (Assign ident exp) = show ident "=" show exp ++ ";"
-	show (FunCall_ funCall) = show funCall ++ ";"
---  show (Return exp) = "return" ++ show exp ++ ";" 	
+    show (List stmt) = unlines $ map show stmt
+    show (If exp stmt) = "If(" ++ show exp ++ ")" ++ show stmt ++ ";" -- we didn't take {} into account yet
+    show (IfElse exp stmt1 stmt2) = "If(" ++ show exp ++ ")" ++ show stmt1 ++ "\nelse" ++ show stmt2 ++ ";"
+    show (While exp stmt) = "While(" ++ show exp ++ ")\n{\n\t" ++ show stmt ++ "\n}"
+    show (Assign ident exp) = show ident ++ "=" ++ show exp ++ ";"
+    show (FunCall_ funCall) = show funCall ++ ";"
+    show (Return exp) = "return" ++ show exp ++ ";" 	
 
 prettyPrint :: Prog -> [String]
 prettyPrint x = map show x
