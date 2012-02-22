@@ -22,7 +22,7 @@ data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | A
 -- instead of If and IfElse we could have had If Exp Stmt (Maybe Stmt) but let's leave it like this for now it works
 
 data Op1 = Negate | UnitaryMinus deriving (Show)
-data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mult | Div deriving (Show)
+data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mult | Div
 
 instance Show Type where
 	show Id_ = ""
@@ -39,18 +39,19 @@ instance Show VarDecl where
     show (VD varType ident ass) = show varType ++ " " ++ ident ++ " = " ++ show ass ++ ";"
 	
 instance Show FunDecl where
-	show (FD retType ident fArgs varDecl stmt) = "\n" ++ show retType ++ " " ++ ident ++ "(" ++ showArgs ++ ")" ++ "\n{" ++ show varDecl ++ show stmt ++ "\n}"
+	show (FD retType ident fArgs varDecl stmt) = "\n" ++ show retType ++ " " ++ ident ++ "(" ++ showArgs ++ ")" ++ "\n{\n" ++ showDecl ++ show stmt ++ "\n}"
 	 where
 	 showArgs = addsep ", " (map (\(t, i) -> show t ++ " " ++ i) fArgs) 
+	 showDecl = foldr (\x y -> x ++ "\n" ++ y) "" (map show varDecl)
 	
 instance Show Stmt where 
     show (Seq stmt) = unlines $ map show stmt
     show (If exp stmt) = "If(" ++ show exp ++ ")" ++ show stmt -- we didn't take {} into account yet
     show (IfElse exp stmt1 stmt2) = "If(" ++ show exp ++ ")" ++ show stmt1 ++ "\nelse" ++ show stmt2
     show (While exp stmt) = "While(" ++ show exp ++ ")\n{\n\t" ++ show stmt ++ "}"
-    show (Assign ident exp) = show ident ++ "=" ++ show exp ++ ";"
+    show (Assign ident exp) = ident ++ " = " ++ show exp ++ ";"
     show (FunCall_ (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ");"
-    show (Return exp) = "return " ++ show exp ++ ";\n"
+    show (Return exp) = "return " ++ show exp ++ ";"
     
 instance Show Exp where 
    show (ExpOp_ op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
@@ -61,6 +62,22 @@ instance Show Exp where
    show (FunCall (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ")"
    show EmptyList = "[]"
    show (Tuple e1 e2) = "(" ++ show e1 ++ "," ++ show e2 ++ ")"
+   
+instance Show ExpOp where
+   show Add = "+"
+   show Sub = "-"
+   show Mod = "%"
+   show Equals = "="
+   show Less = "<"
+   show More = ">"
+   show LessEq = "<="
+   show MoreEq = ">="
+   show NotEq = "!="
+   show And = "&&"
+   show Or = "||"
+   show AppCons = ":"
+   show Mult = "*"
+   show Div = "/"
    
 addsep  :: String -> [String] -> String
 addsep _ []            =  ""
