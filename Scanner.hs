@@ -8,19 +8,13 @@ module Scanner where
 -- >>-: Discards second result
 
 import Char
-
--- scanner converts a string to a tuple of what's parsed and the remaining string
-type Scanner a = String -> Maybe (a, String)
+import Combinators
 
 -- returns unfiltered character. could be a space
 char (c:cs) = Just(c,cs)
 char [] = Nothing
 
 twoChar = token $ char # char       -- ONE TOKEN
-
--- Returns (a,cs)
-tuple :: a -> Scanner a
-tuple a cs = Just(a,cs)
 
 -- converts a string to int. Haskell doensn't have this function, strangely
 toNum :: [Char] -> Int
@@ -29,22 +23,6 @@ toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
 numberScan :: Scanner Int             -- ONE TOKEN
 numberScan = token (iter digitScan) >-> toNum
 
--- Scan and check result
-infixl 7 ?
-(?) :: (Scanner a) -> (a -> Bool) -> Scanner a
-(?) p b cs = 
-  case p cs of
-     Nothing -> Nothing -- parsing failed
-     Just (c, cs) -> if b c then Just(c,cs) else Nothing
-
--- A or B: Tries parsing with scanner A. If it succeeds, it returns. Else scanner B is tried. 
-infixl 3 !
-(!) :: Scanner a -> Scanner a -> Scanner a
-(!) a b cs = 
-  case a cs of
-    Nothing -> b cs
-    acs -> acs
-
 alphaScan = char ? isAlpha
 digitScan = char ? isDigit
 spaceScan = matchCharList "\t\r\n "
@@ -52,35 +30,6 @@ alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = token(char ? (\x -> isAlphaNum x  || x == '_'))   -- ONE TOKEN
 matchChar c = char ? (==c)  -- ONE TOKEN
 matchCharList cs = char ? (flip elem cs)
-
--- feed the result from scanner A to scanner B (chainScan)
-infixl 6 #
-(#) :: Scanner a -> Scanner b -> Scanner (a,b)
-(#) a b cs =
-  case a cs of
-    Nothing -> Nothing
-    Just(c, cs') -> 
-      case b cs' of
-        Nothing -> Nothing
-        Just(q,cs'') -> Just((c,q),cs'')
-
-infixr 6 /\
-(/\) :: Scanner a -> (a -> Scanner b) -> Scanner b
-(/\) p q cs = case p cs of
-	Nothing -> Nothing
-	Just (c,cs') -> q c cs'
-
-infix 6 /?\
-(/?\) :: Scanner a -> (a -> Scanner a) -> Scanner a
-(/?\) op1 op2 = op1 /\ (\l -> (op2 l) ! (tuple l))
-
--- converts a parsed expression to another type
-infixl 5 >->
-(>->) :: Scanner a -> (a -> b) -> Scanner b
-(>->) p k cs = 
-  case p cs of
-    Nothing -> Nothing
-    Just(a,cs') -> Just(k a, cs')
 
 cat :: (a, [a]) -> [a]
 cat (hd, tl) = hd:tl
@@ -98,28 +47,6 @@ iter p = (p # iter p) >-> cat ! tuple []
 
 wordScan :: Scanner String             -- ONE TOKEN
 wordScan = token(iter alphaScan)  
-
--- Extract a scanners result
-infix 4 >>>
-(>>>) :: Scanner a -> (a -> Scanner b) -> Scanner b
-(m >>> k) cs = case m cs of
-	Nothing -> Nothing
-	Just (a, cs') -> k a cs'
-
--- Sequence operator that discards the first result 
-infixl 6 >>| 
-(>>|) :: Scanner a -> Scanner b -> Scanner b
-(m >>| n) cs = case m cs of
-    Nothing -> Nothing
-    Just (a, cs') -> n cs'
-
-infixl 6 >>-  -- Discards second result
-(>>-) :: Scanner a -> Scanner b -> Scanner a
-(m >>- n) cs = case m cs of
-    Nothing -> Nothing
-    Just (a, cs') -> case n cs' of
-        Nothing -> Nothing
-        Just (b, cs2) -> Just(a, cs2)
 
 -- discards the white spaces before and after the parsed result
 token :: Scanner a -> Scanner a

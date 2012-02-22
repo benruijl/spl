@@ -3,6 +3,7 @@ module Parser where
 import Scanner
 import AST
 import Char
+import Combinators
 
 type Parser a = Scanner a
 
