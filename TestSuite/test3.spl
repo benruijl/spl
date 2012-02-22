@@ -1,0 +1,43 @@
+int facL ( int n 
+         )
+{ return product (fromTo ( 1, n ) ) ; }
+
+int product ( [ int ] list )
+{
+	if ( isEmpty ( list )) 
+		return 1;
+	else
+		return head ( list ) * product ( tail ( list ) ) ;
+}
+
+[ int ] fromTo ( int from, int to)
+{
+	if ( from <= to )
+		return from : fromTo ( from + 1, to ) ;
+	else
+		return [ ] ;
+}
+
+[ t ] reverse ( [ t ] list )
+{
+	[ t ] accu = [ ] ;
+	while ( ! isEmpty ( list ))
+	{
+		accu = head ( list ) : accu ;
+		list = tail ( list ) ;
+	}
+	return accu ;
+}
+
+void main ()
+{
+	int n = 0;
+	int facN = 5;
+	[t] list = facL (facN);
+	[t] rev = reverse (list);
+	int prodList = product (list);
+	int prodRev = product (rev);
+	
+	if((rev (rev) == list) && (prodList == prodRev))print (True);
+	else print (False);
+}
