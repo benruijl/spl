@@ -52,14 +52,14 @@ identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
 intScan = ((((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan) ? (/="")) >-> (\x -> Int (toNum x))
 
 progParse :: Parser Prog
-progParse = iter (funDeclParse >-> (\x -> FunDecl x) ! varDeclParse >-> (\x -> VarDecl x))
+progParse = iter (funDeclParse >-> (\x -> FunDecl x) ! varDeclParse >-> (\x -> VarDecl x)) -- ? (/=[]) it doesn't have eq but [] should be generally comparable
 
 fArgsParse :: Parser FArgs
 fArgsParse = ((token typeParse # identScan) >-> (\x -> [x])) /?\ (\x -> (matchChar ',') >>| fArgsParse >-> (\y -> x ++ y))
 
 -- accepts empty functions. add check here or check later?
 funDeclParse :: Parser FunDecl
-funDeclParse = (token retTypeParse # identScan >>- (matchChar '(') # (fArgsParse ! tuple []) >>- (matchChar ')') >>- (matchChar '{') # (iter varDeclParse) # (iter stmtParse) >>- (matchChar '}')) >-> (\((((t,i),a),v),s) -> FD t i a v (List s))
+funDeclParse = (token retTypeParse # identScan >>- (matchChar '(') # (fArgsParse ! tuple []) >>- (matchChar ')') >>- (matchChar '{') # (iter varDeclParse) # (iter stmtParse) >>- (matchChar '}')) >-> (\((((t,i),a),v),s) -> FD t i a v (Seq s))
 
 funCallParse :: Parser FunCall
 funCallParse = identScan >>- (matchChar '(') # (actArgsParse ! tuple []) >>- (matchChar ')')
@@ -98,7 +98,7 @@ factorParse = fcParse ! boolParse ! tupleParse ! (identScan >-> (\x -> Id x)) ! 
 
 stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! returnParse ! assignParse ! whileParse
 
-curlyParse = matchChar '{' >>| iter stmtParse >>- matchChar '}' >-> (\x -> List x)
+curlyParse = matchChar '{' >>| iter stmtParse >>- matchChar '}' >-> (\x -> Seq x)
 
 ifElseParse :: Parser Stmt
 ifElseParse = ((wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(e,s) -> (If e s))) /?\ \(If e s) -> (wordScan ? (=="else")) >>| stmtParse >-> (\c -> (IfElse e s c))

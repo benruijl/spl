@@ -3,6 +3,11 @@ module AST where
 type Id = String
 
 type Prog = [Decl]
+
+				   -- somehow deriving (Eq) but it I change it to a data type I have something like Decls [Decl] and this changes a lot of other stuff
+                   -- here we should have at least one so I suspect (+) but I tryed to make the necesary changes in the parser
+				   -- data Prog = Decl | Decls [Decl]
+
 data Decl = VarDecl VarDecl | FunDecl FunDecl
 
 data VarDecl = VD Type Id Exp
@@ -17,7 +22,9 @@ data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1_ Op1 Exp | Bool Bool | 
 data RetType = Type Type | Void deriving (Show)
 data Type = Id_ | Int_ | Bool_ | Tuple_ Type Type | List_ Type
 
-data Stmt = List [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp
+data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp
+
+-- instead of If and IfElse we could have had If Exp Stmt (Maybe Stmt) but let's leave it like this for now it works
 
 data Op1 = Negate | UnitaryMinus deriving (Show)
 data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mult | Div deriving (Show)
@@ -40,7 +47,7 @@ instance Show FunDecl where
 	show (FD retType ident fArgs varDecl stmt) = "\n" ++ show retType ++ " " ++ ident ++ "(" ++ show fArgs ++ ")" ++ "\n{" ++ show varDecl ++ show stmt ++ "\n}"
 	
 instance Show Stmt where 
-    show (List stmt) = unlines $ map show stmt
+    show (Seq stmt) = unlines $ map show stmt
     show (If exp stmt) = "If(" ++ show exp ++ ")" ++ show stmt -- we didn't take {} into account yet
     show (IfElse exp stmt1 stmt2) = "If(" ++ show exp ++ ")" ++ show stmt1 ++ "\nelse" ++ show stmt2
     show (While exp stmt) = "While(" ++ show exp ++ ")\n{\n\t" ++ show stmt ++ "}"
