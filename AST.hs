@@ -22,7 +22,7 @@ data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | A
 -- instead of If and IfElse we could have had If Exp Stmt (Maybe Stmt) but let's leave it like this for now it works
 
 data Op1 = Negate | UnitaryMinus
-data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mult | Div
+data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mul | Div
 
 instance Show Type where
 	show Id_ = ""
@@ -51,14 +51,26 @@ instance Show FunDecl where
 	
 instance Show Stmt where 
     show (Seq stmt) = unlines $ map show stmt
-    show (If exp stmt) = "If(" ++ show exp ++ ")" ++ show stmt -- we didn't take {} into account yet
+    show (If exp stmt) = "If(" ++ show exp ++ ")\n{\n" ++ show stmt ++ "}"
     show (IfElse exp stmt1 stmt2) = "If(" ++ show exp ++ ")" ++ "\n{\n" ++ indentML (show stmt1) ++ "}\nelse\n{\n" ++ indentML (show stmt2) ++ "}"
     show (While exp stmt) = "While(" ++ show exp ++ ")\n{\n" ++ indentML (show stmt) ++ "}"
     show (Assign ident exp) = ident ++ " = " ++ show exp ++ ";"
     show (FunCall_ (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ");"
     show (Return exp) = "return " ++ show exp ++ ";"
     
-instance Show Exp where 
+instance Show Exp where
+   -- Only show parentheses when required. These are probably not all cases
+   show (ExpOp_ Sub e1 e2@(ExpOp_ Add _ _)) = show e1 ++ " " ++ show Sub ++ " (" ++ show e2 ++ ")"
+   show (ExpOp_ Sub e1 e2@(ExpOp_ Sub _ _)) = show e1 ++ " " ++ show Sub ++ " (" ++ show e2 ++ ")"
+   show (ExpOp_ Mul e1 e2@(ExpOp_ Sub _ _)) = show e1 ++ " " ++ show Mul ++ " (" ++ show e2 ++ ")" 
+   show (ExpOp_ Mul e1 e2@(ExpOp_ Add _ _)) = show e1 ++ " " ++ show Mul ++ " (" ++ show e2 ++ ")" 
+   show (ExpOp_ Mul e1@(ExpOp_ Sub _ _) e2) = "(" ++  show e1 ++ ") " ++ show Mul ++ " " ++ show e2
+   show (ExpOp_ Mul e1@(ExpOp_ Add _ _) e2) = "(" ++  show e1 ++ ") " ++ show Mul ++ " " ++ show e2
+   show (ExpOp_ Div e1 e2@(ExpOp_ Sub _ _)) = show e1 ++ " " ++ show Div ++ " (" ++ show e2 ++ ")" 
+   show (ExpOp_ Div e1 e2@(ExpOp_ Add _ _)) = show e1 ++ " " ++ show Div ++ " (" ++ show e2 ++ ")" 
+   show (ExpOp_ Div e1@(ExpOp_ Sub _ _) e2) = "(" ++  show e1 ++ ") " ++ show Div ++ " " ++ show e2
+   show (ExpOp_ Div e1@(ExpOp_ Add _ _) e2) = "(" ++  show e1 ++ ") " ++ show Div ++ " " ++ show e2
+   
    show (ExpOp_ op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
    show (Int int) = show int
    show (Id id) = id
@@ -81,7 +93,7 @@ instance Show ExpOp where
    show And = "&&"
    show Or = "||"
    show AppCons = ":"
-   show Mult = "*"
+   show Mul = "*"
    show Div = "/"
    
 instance Show Op1 where

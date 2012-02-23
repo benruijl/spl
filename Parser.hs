@@ -27,7 +27,7 @@ TODO: implement all of them, currently only 6 and 7 are done
 
 opAdd =  (matchChar '+') >-> (\_ -> Add)
 opSub =  (matchChar '-') >-> (\_ -> Sub)
-opMult =  (matchChar '*') >-> (\_ -> Mult)
+opMult =  (matchChar '*') >-> (\_ -> Mul)
 opDiv  =  (matchChar '/') >-> (\_ -> Div)
 opMod =  (matchChar '%') >-> (\_ -> Mod)
 opEquals =  (matchChar '=') #  (matchChar '=') >-> (\_ -> Equals)
