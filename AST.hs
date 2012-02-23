@@ -22,7 +22,7 @@ data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | A
 -- instead of If and IfElse we could have had If Exp Stmt (Maybe Stmt) but let's leave it like this for now it works
 
 data Op1 = Negate | UnitaryMinus
-data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mul | Div
+data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mul | Div deriving Eq
 
 instance Show Type where
 	show Id_ = ""
@@ -60,18 +60,14 @@ instance Show Stmt where
     
 instance Show Exp where
    -- Only show parentheses when required. These are probably not all cases
-   show (ExpOp_ Sub e1 e2@(ExpOp_ Add _ _)) = show e1 ++ " " ++ show Sub ++ " (" ++ show e2 ++ ")"
-   show (ExpOp_ Sub e1 e2@(ExpOp_ Sub _ _)) = show e1 ++ " " ++ show Sub ++ " (" ++ show e2 ++ ")"
-   show (ExpOp_ Mul e1 e2@(ExpOp_ Sub _ _)) = show e1 ++ " " ++ show Mul ++ " (" ++ show e2 ++ ")" 
-   show (ExpOp_ Mul e1 e2@(ExpOp_ Add _ _)) = show e1 ++ " " ++ show Mul ++ " (" ++ show e2 ++ ")" 
-   show (ExpOp_ Mul e1@(ExpOp_ Sub _ _) e2) = "(" ++  show e1 ++ ") " ++ show Mul ++ " " ++ show e2
-   show (ExpOp_ Mul e1@(ExpOp_ Add _ _) e2) = "(" ++  show e1 ++ ") " ++ show Mul ++ " " ++ show e2
-   show (ExpOp_ Div e1 e2@(ExpOp_ Sub _ _)) = show e1 ++ " " ++ show Div ++ " (" ++ show e2 ++ ")" 
-   show (ExpOp_ Div e1 e2@(ExpOp_ Add _ _)) = show e1 ++ " " ++ show Div ++ " (" ++ show e2 ++ ")" 
-   show (ExpOp_ Div e1@(ExpOp_ Sub _ _) e2) = "(" ++  show e1 ++ ") " ++ show Div ++ " " ++ show e2
-   show (ExpOp_ Div e1@(ExpOp_ Add _ _) e2) = "(" ++  show e1 ++ ") " ++ show Div ++ " " ++ show e2
+   show k@(ExpOp_ o e1 e2)
+      | o == Mul || o == Div = parcheck e1 ++ " " ++ show Mul ++ " " ++ parcheck e2
+      | o == Sub = show e1 ++ " " ++ show o ++ " " ++ parcheck e2 
+   	  | otherwise =  show e1 ++ " " ++ show o ++ " " ++ show e2
+   	  where
+   	  parcheck s@(ExpOp_ o e1 e2) = if (o == Add || o == Sub) then "(" ++ show s ++ ")" else show s
+   	  parcheck s = show s
    
-   show (ExpOp_ op e1 e2) = show e1 ++ " " ++ show op ++ " " ++ show e2
    show (Int int) = show int
    show (Id id) = id
    show (Op1_ op e) = show op ++ show e
