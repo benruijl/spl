@@ -57,9 +57,10 @@ instance Show Stmt where
     show (Assign ident exp) = ident ++ " = " ++ show exp ++ ";"
     show (FunCall_ (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ");"
     show (Return exp) = "return " ++ show exp ++ ";"
-    
+   
 instance Show Exp where
    -- Only show parentheses when required. These are probably not all cases
+   -- TODO: add parentheses for Or
    show k@(ExpOp_ o e1 e2)
       | o == Mul || o == Div = parcheck e1 ++ " " ++ show Mul ++ " " ++ parcheck e2
       | o == Sub = show e1 ++ " " ++ show o ++ " " ++ parcheck e2 

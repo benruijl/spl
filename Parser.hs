@@ -43,7 +43,7 @@ opNegate =  (matchChar '!') >-> (\_ -> Negate)
 opUnitaryMinus =  (matchChar '-') >-> (\_ -> UnitaryMinus)
 
 -- TODO: put in good category
-op2 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opAdd ! opSub ! opMod ! opLess ! opMore ! opAnd ! opOr
+op2 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opAdd ! opSub ! opMod ! opLess ! opMore ! opAnd
 term = opMult ! opDiv
 
 op1 = opNegate ! opUnitaryMinus 
@@ -76,7 +76,12 @@ varDeclParse :: Parser VarDecl
 varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
 
 expParse :: Parser Exp
-expParse = termParse /?\ op2Parse 
+expParse = addSubParse /?\ orParse
+    where
+    orParse x = opOr # (addSubParse /?\ orParse)  >-> (\(o,y) -> ExpOp_ o x y)
+
+addSubParse :: Parser Exp
+addSubParse = termParse /?\ op2Parse 
    where
     -- left associative  
     op2Parse x = ((op2 # termParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ op2Parse) ! listAddParse x
