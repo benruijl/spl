@@ -42,9 +42,9 @@ opAppCons =  (matchChar ':') >-> (\_ -> AppCons)
 opNegate =  (matchChar '!') >-> (\_ -> Negate)
 opUnitaryMinus =  (matchChar '-') >-> (\_ -> UnitaryMinus)
 
--- TODO: put in good category
-op2 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opAdd ! opSub ! opMod ! opLess ! opMore ! opAnd
-term = opMult ! opDiv
+op4 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opLess ! opMore
+op6 = opAdd ! opSub
+op7 = opMult ! opDiv ! opMod
 
 op1 = opNegate ! opUnitaryMinus 
 
@@ -76,22 +76,31 @@ varDeclParse :: Parser VarDecl
 varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
 
 expParse :: Parser Exp
-expParse = addSubParse /?\ orParse
+expParse = compParse /?\ orParse
     where
-    orParse x = opOr # (addSubParse /?\ orParse)  >-> (\(o,y) -> ExpOp_ o x y)
+    orParse x = opOr # (compParse /?\ orParse)  >-> (\(o,y) -> ExpOp_ o x y)
+    
+compParse :: Parser Exp
+compParse =  listAddParse /?\ op6Parse
+    where
+    op6Parse x = op4 # (listAddParse /?\ op6Parse)  >-> (\(o,y) -> ExpOp_ o x y)
+    
+listAddParse :: Parser Exp
+listAddParse =  addSubParse /?\ op5Parse
+    where
+    -- right associative
+    op5Parse x = opAppCons # (addSubParse /?\ op5Parse)  >-> (\(o,y) -> ExpOp_ o x y)
 
 addSubParse :: Parser Exp
-addSubParse = termParse /?\ op2Parse 
+addSubParse = termParse /?\ op6Parse 
    where
     -- left associative  
-    op2Parse x = ((op2 # termParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ op2Parse) ! listAddParse x
-    -- right associative
-    listAddParse x = opAppCons # (termParse /?\ listAddParse)  >-> (\(o,y) -> ExpOp_ o x y)
+    op6Parse x = (op6 # termParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ op6Parse
     
 termParse :: Parser Exp
 termParse = factorParse /?\ term2Parse
    where
-   term2Parse x = (term # factorParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ term2Parse
+   term2Parse x = (op7 # factorParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ term2Parse
 
 factorParse :: Parser Exp
 factorParse = fcParse ! boolParse ! tupleParse ! (identScan >-> (\x -> Id x)) ! intScan ! emptyListParse ! (matchChar '(' >>| expParse >>- matchChar ')')
