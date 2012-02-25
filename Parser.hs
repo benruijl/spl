@@ -75,37 +75,26 @@ retTypeParse = typeParse >-> (\x -> Type x) ! wordScan ? (=="void") >-> (\x -> V
 varDeclParse :: Parser VarDecl
 varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
 
+-- Right recursive expression parser
+nextr :: Parser ExpOp -> Parser Exp -> Parser Exp
+nextr o p = p /?\ next'
+	where
+	next' x = o # (p /?\ next')  >-> (\(o,y) -> ExpOp_ o x y)
+	
+-- Left recursive expression parser
+nextl :: Parser ExpOp -> Parser Exp -> Parser Exp
+nextl o p = p /?\ next'
+	where
+	next' x = (o # p >-> (\(o,y) -> ExpOp_ o x y))  /?\ next'
+	
 expParse :: Parser Exp
-expParse = andParse /?\ orParse
+expParse = nextr opOr andParse
     where
-    orParse x = opOr # (andParse /?\ orParse)  >-> (\(o,y) -> ExpOp_ o x y)
-    
-andParse :: Parser Exp
-andParse =  compParse /?\ op3Parse
-    where
-    op3Parse x = opAnd # (compParse /?\ op3Parse)  >-> (\(o,y) -> ExpOp_ o x y)
-    
-compParse :: Parser Exp
-compParse =  listAddParse /?\ op4Parse
-    where
-    op4Parse x = op4 # (listAddParse /?\ op4Parse)  >-> (\(o,y) -> ExpOp_ o x y)
-    
-listAddParse :: Parser Exp
-listAddParse =  addSubParse /?\ op5Parse
-    where
-    -- right associative
-    op5Parse x = opAppCons # (addSubParse /?\ op5Parse)  >-> (\(o,y) -> ExpOp_ o x y)
-
-addSubParse :: Parser Exp
-addSubParse = termParse /?\ op6Parse 
-   where
-    -- left associative  
-    op6Parse x = (op6 # termParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ op6Parse
-    
-termParse :: Parser Exp
-termParse = factorParse /?\ term2Parse
-   where
-   term2Parse x = (op7 # factorParse >-> (\(o,y) -> ExpOp_ o x y))  /?\ term2Parse
+    andParse = nextr opAnd compParse
+    compParse = nextr op4 listAddParse
+    listAddParse = nextr opAppCons addSubParse
+    addSubParse = nextl op6 termParse
+    termParse = nextl op7 factorParse
 
 factorParse :: Parser Exp
 factorParse = fcParse ! boolParse ! tupleParse ! (identScan >-> (\x -> Id x)) ! intScan ! emptyListParse ! (matchChar '(' >>| expParse >>- matchChar ')')
