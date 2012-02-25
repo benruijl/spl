@@ -76,14 +76,19 @@ varDeclParse :: Parser VarDecl
 varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
 
 expParse :: Parser Exp
-expParse = compParse /?\ orParse
+expParse = andParse /?\ orParse
     where
-    orParse x = opOr # (compParse /?\ orParse)  >-> (\(o,y) -> ExpOp_ o x y)
+    orParse x = opOr # (andParse /?\ orParse)  >-> (\(o,y) -> ExpOp_ o x y)
+    
+andParse :: Parser Exp
+andParse =  compParse /?\ op3Parse
+    where
+    op3Parse x = opAnd # (compParse /?\ op3Parse)  >-> (\(o,y) -> ExpOp_ o x y)
     
 compParse :: Parser Exp
-compParse =  listAddParse /?\ op6Parse
+compParse =  listAddParse /?\ op4Parse
     where
-    op6Parse x = op4 # (listAddParse /?\ op6Parse)  >-> (\(o,y) -> ExpOp_ o x y)
+    op4Parse x = op4 # (listAddParse /?\ op4Parse)  >-> (\(o,y) -> ExpOp_ o x y)
     
 listAddParse :: Parser Exp
 listAddParse =  addSubParse /?\ op5Parse
