@@ -27,7 +27,7 @@ alphaScan = char ? isAlpha
 digitScan = char ? isDigit
 spaceScan = matchCharList "\t\r\n "
 alphaNumUnderScoreScan :: Scanner Char
-alphaNumUnderScoreScan = token(char ? (\x -> isAlphaNum x  || x == '_'))   -- ONE TOKEN
+alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x  || x == '_')   -- ONE TOKEN
 matchChar c = char ? (==c)  -- ONE TOKEN
 matchCharList cs = char ? (flip elem cs)
 
