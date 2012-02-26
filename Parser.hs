@@ -97,12 +97,13 @@ expParse = nextr opOr andParse
     termParse = nextl op7 factorParse
 
 factorParse :: Parser Exp
-factorParse = fcParse ! boolParse ! tupleParse ! (identScan >-> (\x -> Id x)) ! intScan ! emptyListParse ! (matchChar '(' >>| expParse >>- matchChar ')')
+factorParse = fcParse ! boolParse ! tupleParse ! op1Parse ! (identScan >-> (\x -> Id x)) ! intScan ! emptyListParse ! (matchChar '(' >>| expParse >>- matchChar ')')
   where
   emptyListParse = matchChar '[' >>- matchChar ']' >-> (\_ -> EmptyList)
   tupleParse = matchChar '(' >>| expParse >>- matchChar ',' # expParse >>- matchChar ')' >-> (\(x,y) -> Tuple x y)
   fcParse = funCallParse >-> (\x -> FunCall x)
   boolParse = wordScan ? (=="true") >-> (\x -> Bool True) ! wordScan ? (=="false") >-> (\x -> Bool False)
+  op1Parse = op1 # factorParse >-> (\(o, x) -> Op1_ o x) -- only accepts factors
     
 
 stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! returnParse ! assignParse ! whileParse

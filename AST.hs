@@ -60,9 +60,9 @@ instance Show Stmt where
    
 instance Show Exp where
    -- Only show parentheses when required. These are probably not all cases
-   -- TODO: add parentheses for Or, all compares and :
-   show k@(ExpOp_ o e1 e2)
-      | o == Mul || o == Div = parcheck e1 ++ " " ++ show Mul ++ " " ++ parcheck e2
+   -- TODO: add parentheses for Or, And, AppCons
+   show (ExpOp_ o e1 e2)
+      | o == Mul || o == Div = parcheck e1 ++ " " ++ show o ++ " " ++ parcheck e2
       | o == Sub = show e1 ++ " " ++ show o ++ " " ++ parcheck e2 
    	  | otherwise =  show e1 ++ " " ++ show o ++ " " ++ show e2
    	  where
@@ -71,7 +71,7 @@ instance Show Exp where
    
    show (Int int) = show int
    show (Id id) = id
-   show (Op1_ op e) = show op ++ show e
+   show (Op1_ op e) = show op++ "(" ++ show e ++ ")"
    show (Bool bool) = show bool
    show (FunCall (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ")"
    show EmptyList = "[]"
