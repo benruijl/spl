@@ -34,7 +34,7 @@ toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
 
 -- TODO: add support for minus sign, or is this already taken care of by tokList?
 numberScan :: Scanner Token
-numberScan = (token (iter digitScan)) >-> (\x -> Int__ (toNum x))
+numberScan = (token (iter digitScan) ? (\x -> x /= [])) >-> (\x -> Int__ (toNum x))
 
 alphaScan = char ? isAlpha
 digitScan = char ? isDigit
@@ -57,7 +57,7 @@ identScan = (token(alphaScan # iter alphaNumUnderScoreScan)) >-> (\x->Id__ (cat 
 token :: Scanner a -> Scanner a
 token x = iter spaceScan >>| x >>- iter spaceScan
   
-tokList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";", "}", "{"]
+tokList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";", "}", "{", ",", "[", "]"]
 
 tokScan = (token ((twoChar ? inList) ! ((char >-> (\x -> [x])) ? inList))) >-> (\x->String_ x)
   where
