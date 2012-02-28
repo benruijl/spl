@@ -31,9 +31,9 @@ infixl 3 !
     acs -> acs
 
 -- feed the result from scanner A to scanner B (chainScan)
-{-
+
 infixl 6 #
-(#) :: Scanner a b -> Scanner c d -> Scanner ((a, c) (b, d))
+(#) :: Scanner a b -> Scanner c b -> Scanner (a, c) b 
 (#) a b cs =
   case a cs of
     Nothing -> Nothing
@@ -41,7 +41,6 @@ infixl 6 #
       case b cs' of
         Nothing -> Nothing
         Just(q,cs'') -> Just((c,q),cs'')
--}
 
 infixr 6 /\
 (/\) :: Scanner a b -> (a -> Scanner c b) -> Scanner c b
