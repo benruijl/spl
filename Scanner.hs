@@ -23,7 +23,6 @@ type Scanner a = CoreScanner a String
 -- >>-: Discards second result
 
 -- returns unfiltered character. could be a space
-
 char (c:cs) = Just(c,cs)
 char [] = Nothing
 
@@ -33,15 +32,16 @@ twoChar = token $ char # char >-> cat2
 toNum :: [Char] -> Int
 toNum = foldl (\x y -> 10 * x + (digitToInt y)) 0
 
-numberScan :: Scanner Token -- ONE TOKEN the output is token so the first parameter
-numberScan = token (iter digitScan) >-> (\x -> Int__ (toNum x))
+-- TODO: add support for minus sign, or is this already taken care of by tokList?
+numberScan :: Scanner Token
+numberScan = (token (iter digitScan)) >-> (\x -> Int__ (toNum x))
 
 alphaScan = char ? isAlpha
 digitScan = char ? isDigit
 spaceScan = matchCharList "\t\r\n "
 alphaNumUnderScoreScan :: Scanner Char
-alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x || x == '_') -- ONE TOKEN
-matchChar c = char ? (==c) -- ONE TOKEN
+alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x || x == '_')
+matchChar c = char ? (==c)
 matchCharList cs = char ? (flip elem cs)
 
 cat1 :: ([a], [a]) -> [a]
@@ -51,8 +51,7 @@ cat2 :: (a, a) -> [a]
 cat2 (hd, snd) = [hd , snd]
 
 identScan :: Scanner Token
-identScan = token(alphaScan # iter alphaNumUnderScoreScan) >-> (\x->Id__ (cat x))
-
+identScan = (token(alphaScan # iter alphaNumUnderScoreScan)) >-> (\x->Id__ (cat x))
 
 -- discards the white spaces before and after the parsed result
 token :: Scanner a -> Scanner a
@@ -60,9 +59,9 @@ token x = iter spaceScan >>| x >>- iter spaceScan
   
 tokList = ["+", "-", "*", "/", "%", "==", "<", "<", ">", "<=", ">=", "!=", "&&", "||", ":", "!", "=", "(", ")", ";", "}", "{"]
 
-tokScan = (token ((twoChar ? inList) ! ((char >-> (\x -> [x])) ? inList))) >-> (\x->String_ x) -- ONE TOKEN
+tokScan = (token ((twoChar ? inList) ! ((char >-> (\x -> [x])) ? inList))) >-> (\x->String_ x)
   where
   inList x = elem x tokList
   
 lineScan :: Scanner [Token]
-lineScan =  iter (identScan ! tokScan)-- ! numberScan)
+lineScan =  iter (identScan ! tokScan ! numberScan)
