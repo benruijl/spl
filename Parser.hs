@@ -4,7 +4,6 @@ import AST
 import Char
 import Combinators
 
-
 {-
 Order of operations:
 
@@ -26,14 +25,14 @@ opSub =  (match "-") >-> (\_ -> Sub)
 opMult =  (match "*") >-> (\_ -> Mul)
 opDiv  =  (match "/") >-> (\_ -> Div)
 opMod =  (match "%") >-> (\_ -> Mod)
-opEquals =  (match "=") #  (match "=") >-> (\_ -> Equals)
+opEquals =  (match "==") >-> (\_ -> Equals)
 opLess =  (match "<") >-> (\_ -> Less)
 opMore =  (match ">") >-> (\_ -> More)
-opLessEq =  (match "<") #  (match "=") >-> (\_ -> LessEq)
-opMoreEq =  (match ">") #  (match "=") >-> (\_ -> MoreEq)
-opNotEq =  (match "!") #  (match "=") >-> (\_ -> NotEq)
-opAnd =  (match "&") #  (match "&") >-> (\_ -> And)
-opOr =  (match "|") #  (match "|") >-> (\_ -> Or)
+opLessEq =  (match "<=") >-> (\_ -> LessEq)
+opMoreEq =  (match ">=") >-> (\_ -> MoreEq)
+opNotEq =  (match "!=") >-> (\_ -> NotEq)
+opAnd =  (match "&&") >-> (\_ -> And)
+opOr =  (match "||") >-> (\_ -> Or)
 opAppCons =  (match ":") >-> (\_ -> AppCons)
 opNegate =  (match "!") >-> (\_ -> Negate)
 opUnitaryMinus =  (match "-") >-> (\_ -> UnitaryMinus)
@@ -50,7 +49,7 @@ match b = next ? (\x -> case x of {(String_ a) -> a == b; (_) -> False;}) -- mat
 
 
 progParse :: Parser Prog
-progParse = iter (funDeclParse >-> (\x -> FunDecl x) ! varDeclParse >-> (\x -> VarDecl x)) -- ? (/=[]) it doesn"t have eq but [] should be generally comparable
+progParse = iter (funDeclParse >-> (\x -> FunDecl x) ! varDeclParse >-> (\x -> VarDecl x))
 
 fArgsParse :: Parser FArgs
 fArgsParse = (( typeParse # identScan) >-> (\x -> [x])) /?\ (\x -> (match ",") >>| fArgsParse >-> (\y -> x ++ y))
@@ -117,8 +116,7 @@ whileParse = ((match "while")) >>| (match "(") >>| expParse  >>- (match ")") # s
 
 returnParse =  ((match "return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
 
--- not parsing custom type id yet, not sure why we should
-typeParse = (match "int") >-> (\_ -> Int_) ! (match "int") >-> (\_ -> Bool_) ! parseTuple ! parseList
+typeParse = (match "int") >-> (\_ -> Int_) ! (match "bool") >-> (\_ -> Bool_) ! parseTuple ! parseList ! identScan >-> (\x -> Id_ x)
     where
     parseTuple = match "(" >>| typeParse >>- match "," # typeParse >>- match ")" >-> (\(x,y) -> Tuple_ x y)
     parseList = match "[" >>| typeParse >>- match "]" >-> (\x -> List_ x)

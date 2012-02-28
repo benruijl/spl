@@ -15,7 +15,7 @@ type FunCall = (Id, ActArgs)
 data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1_ Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp
 
 data RetType = Type Type | Void
-data Type = Id_ | Int_ | Bool_ | Tuple_ Type Type | List_ Type
+data Type = Id_ Id | Int_ | Bool_ | Tuple_ Type Type | List_ Type
 
 data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp
 
@@ -25,7 +25,7 @@ data Op1 = Negate | UnitaryMinus
 data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mul | Div deriving Eq
 
 instance Show Type where
-	show Id_ = ""
+	show (Id_ x) = x
 	show Int_ = "int"
 	show Bool_ = "bool"
 	show (Tuple_ x y) = "(" ++ show x ++ "," ++ show y ++ ")"
@@ -81,7 +81,7 @@ instance Show ExpOp where
    show Add = "+"
    show Sub = "-"
    show Mod = "%"
-   show Equals = "="
+   show Equals = "=="
    show Less = "<"
    show More = ">"
    show LessEq = "<="
