@@ -7,7 +7,12 @@ import Scanner
 import Parser
 import AST
 
-scanSuccess :: Maybe (a, String) -> a
+parseSuccess :: Maybe (a, [Token]) -> a
+parseSuccess (Just (x,[])) = x
+parseSuccess (Just (_,xs)) = error $ "Parse error at '" ++ show xs ++ "'"
+parseSuccess Nothing = error "Parse error: could not read anything."
+
+scanSuccess :: Maybe ([Token], String) -> [Token]
 scanSuccess (Just (x,"")) = x
 scanSuccess (Just (_,xs)) = error $ "Scan error at '" ++ xs ++ "'"
 scanSuccess Nothing = error "Scan error: could not read anything."
@@ -18,7 +23,7 @@ filterNL = filter (flip notElem "\r\n\t")
 main = do
    [s] <- getArgs
    f <- readFile s
-   let prog =  (scanSuccess . progParse. filterNL) f
+   let prog =  (parseSuccess . progParse. scanSuccess. lineScan . filterNL) f
    mapM_ putStrLn $ prettyPrint prog
 
 
