@@ -9,12 +9,13 @@ module Scanner where
 
 import Char
 import Combinators
+import AST
 
 data Token = Exp_ Exp | String String
 
 -- returns unfiltered character. could be a space
-char (c:cs) = Just(c,cs)
-char [] = Nothing
+char (c:cs) = [c:cs]
+char [] = []
 
 twoChar = token $ char # char       -- ONE TOKEN
 
@@ -28,6 +29,7 @@ numberScan = token (iter digitScan) >-> toNum
 alphaScan = char ? isAlpha
 digitScan = char ? isDigit
 spaceScan = matchCharList "\t\r\n "
+
 alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x  || x == '_')   -- ONE TOKEN
 matchChar c = char ? (==c)  -- ONE TOKEN
