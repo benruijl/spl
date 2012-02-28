@@ -3,37 +3,37 @@ module Combinators where
 -- !: Scan with a, if fails, parse with b, a ! b
 -- #: Scan with a, parse leftovers with b, a # b
 -- >->: Convert parsed type a to b
--- >>>: Extract a scanners result
+-- >>>: Extract a CoreScanners result
 -- >>|: Sequence operator that discards the first result
 -- >>-: Discards second result
 
--- scanner converts a string to a tuple of what's parsed and the remaining string
-type Scanner a b = b -> Maybe (a, b)
+-- CoreScanner converts a string to a tuple of what's parsed and the remaining string
+type CoreScanner a b = b -> Maybe (a, b)
 
 -- Returns (a,cs)
-tuple :: a  -> Scanner a b
+tuple :: a  -> CoreScanner a b
 tuple a cs = Just(a,cs)
 
 -- Scan and check result
 infixl 7 ?
-(?) :: (Scanner a b) -> (a -> Bool) -> Scanner a b
+(?) :: (CoreScanner a b) -> (a -> Bool) -> CoreScanner a b
 (?) p b cs =
   case p cs of
      Nothing -> Nothing -- parsing failed
      Just (c, cs) -> if b c then Just(c,cs) else Nothing
 
--- A or B: Tries parsing with scanner A. If it succeeds, it returns. Else scanner B is tried.
+-- A or B: Tries parsing with CoreScanner A. If it succeeds, it returns. Else CoreScanner B is tried.
 infixl 3 !
-(!) :: Scanner a b -> Scanner a b -> Scanner a b
+(!) :: CoreScanner a b -> CoreScanner a b -> CoreScanner a b
 (!) a b cs =
   case a cs of
     Nothing -> b cs
     acs -> acs
 
--- feed the result from scanner A to scanner B (chainScan)
+-- feed the result from CoreScanner A to CoreScanner B (chainScan)
 
 infixl 6 #
-(#) :: Scanner a b -> Scanner c b -> Scanner (a, c) b 
+(#) :: CoreScanner a b -> CoreScanner c b -> CoreScanner (a, c) b 
 (#) a b cs =
   case a cs of
     Nothing -> Nothing
@@ -43,39 +43,39 @@ infixl 6 #
         Just(q,cs'') -> Just((c,q),cs'')
 
 infixr 6 /\
-(/\) :: Scanner a b -> (a -> Scanner c b) -> Scanner c b
+(/\) :: CoreScanner a b -> (a -> CoreScanner c b) -> CoreScanner c b
 (/\) p q cs = case p cs of
 	Nothing -> Nothing
 	Just (c,cs') -> q c cs'
 
 infix 6 /?\
-(/?\) :: Scanner a b -> (a -> Scanner a b) -> Scanner a b
+(/?\) :: CoreScanner a b -> (a -> CoreScanner a b) -> CoreScanner a b
 (/?\) op1 op2 = op1 /\ (\l -> (op2 l) ! (tuple l))
 
 -- converts a parsed expression to another type
 infixl 5 >->
-(>->) :: Scanner a b -> (a -> c) -> Scanner c b
+(>->) :: CoreScanner a b -> (a -> c) -> CoreScanner c b
 (>->) p k cs =
   case p cs of
     Nothing -> Nothing
     Just(a,cs') -> Just(k a, cs')
 
--- Extract a scanners result
+-- Extract a CoreScanners result
 infix 4 >>>
-(>>>) :: Scanner a b -> (a -> Scanner c b) -> Scanner c b
+(>>>) :: CoreScanner a b -> (a -> CoreScanner c b) -> CoreScanner c b
 (m >>> k) cs = case m cs of
 	Nothing -> Nothing
 	Just (a, cs') -> k a cs'
 
 -- Sequence operator that discards the first result
 infixl 6 >>|
-(>>|) :: Scanner a b -> Scanner c b -> Scanner c b
+(>>|) :: CoreScanner a b -> CoreScanner c b -> CoreScanner c b
 (m >>| n) cs = case m cs of
     Nothing -> Nothing
     Just (a, cs') -> n cs'
 
 infixl 6 >>- -- Discards second result
-(>>-) :: Scanner a b -> Scanner c b -> Scanner a b
+(>>-) :: CoreScanner a b -> CoreScanner c b -> CoreScanner a b
 (m >>- n) cs = case m cs of
     Nothing -> Nothing
     Just (a, cs') -> case n cs' of
