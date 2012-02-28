@@ -10,6 +10,8 @@ module Scanner where
 import Char
 import Combinators
 
+data Token = Exp_ Exp | String String
+
 -- returns unfiltered character. could be a space
 char (c:cs) = Just(c,cs)
 char [] = Nothing

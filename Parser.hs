@@ -5,7 +5,7 @@ import AST
 import Char
 import Combinators
 
-type Parser a = Scanner a
+type Parser a = [Token] -> Maybe(a, [Token])
 
 {-
 Order of operations:
@@ -126,4 +126,5 @@ typeParse = wordScan ? (=="int") >-> (\_ -> Int_) ! wordScan ? (=="int") >-> (\_
     parseTuple = matchChar '(' >>| typeParse >>- matchChar ',' # typeParse >>- matchChar ')' >-> (\(x,y) -> Tuple_ x y)
     parseList = matchChar '[' >>| typeParse >>- matchChar ']' >-> (\x -> List_ x)
 
-parseEnd = matchChar ';'
+parseEnd = matchChar ';'type Parser a = [Token] -> Maybe(a, [Token])
+
