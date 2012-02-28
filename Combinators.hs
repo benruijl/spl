@@ -9,13 +9,13 @@ module Combinators where
 
 data Token = Int__ Int | Id__ String | String_ String deriving Show
 type Scanner a b = b -> Maybe(a, b)
-type Parser a = Scanner a Token
+type Parser a = Scanner a [Token]
 
 -- Returns (a,cs)
 tuple :: a  -> Scanner a b
 tuple a cs = Just(a,cs)
 
-next :: Scanner Token
+next :: Scanner a [a]
 next (c:cs) = Just(c, cs)
 next _ = Nothing
 
@@ -92,5 +92,5 @@ cat (hd, tl) = hd:tl
 
 -- iterate parsing until an error is met
 -- warning: iter returns an empty list instead of Nothing
-iter :: Scanner a -> Scanner [a]
+iter :: Scanner a b -> Scanner [a] b
 iter p = (p # iter p) >-> cat ! tuple []
