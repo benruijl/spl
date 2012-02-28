@@ -1,11 +1,9 @@
 module Parser where
 
-import Scanner
 import AST
 import Char
 import Combinators
 
-type Parser a = [Token] -> Maybe(a, [Token])
 
 {-
 Order of operations:
@@ -21,59 +19,58 @@ infixr 2  ||
 infixl 1  >>, >>=
 infixr 1  =<<
 infixr 0  $, $!, `seq`
-
-TODO: implement all of them, currently only 6 and 7 are done
 -}
 
-opAdd =  (matchChar '+') >-> (\_ -> Add)
-opSub =  (matchChar '-') >-> (\_ -> Sub)
-opMult =  (matchChar '*') >-> (\_ -> Mul)
-opDiv  =  (matchChar '/') >-> (\_ -> Div)
-opMod =  (matchChar '%') >-> (\_ -> Mod)
-opEquals =  (matchChar '=') #  (matchChar '=') >-> (\_ -> Equals)
-opLess =  (matchChar '<') >-> (\_ -> Less)
-opMore =  (matchChar '>') >-> (\_ -> More)
-opLessEq =  (matchChar '<') #  (matchChar '=') >-> (\_ -> LessEq)
-opMoreEq =  (matchChar '>') #  (matchChar '=') >-> (\_ -> MoreEq)
-opNotEq =  (matchChar '!') #  (matchChar '=') >-> (\_ -> NotEq)
-opAnd =  (matchChar '&') #  (matchChar '&') >-> (\_ -> And)
-opOr =  (matchChar '|') #  (matchChar '|') >-> (\_ -> Or)
-opAppCons =  (matchChar ':') >-> (\_ -> AppCons)
-opNegate =  (matchChar '!') >-> (\_ -> Negate)
-opUnitaryMinus =  (matchChar '-') >-> (\_ -> UnitaryMinus)
+opAdd =  (match "+") >-> (\_ -> Add)
+opSub =  (match "-") >-> (\_ -> Sub)
+opMult =  (match "*") >-> (\_ -> Mul)
+opDiv  =  (match "/") >-> (\_ -> Div)
+opMod =  (match "%") >-> (\_ -> Mod)
+opEquals =  (match "=") #  (match "=") >-> (\_ -> Equals)
+opLess =  (match "<") >-> (\_ -> Less)
+opMore =  (match ">") >-> (\_ -> More)
+opLessEq =  (match "<") #  (match "=") >-> (\_ -> LessEq)
+opMoreEq =  (match ">") #  (match "=") >-> (\_ -> MoreEq)
+opNotEq =  (match "!") #  (match "=") >-> (\_ -> NotEq)
+opAnd =  (match "&") #  (match "&") >-> (\_ -> And)
+opOr =  (match "|") #  (match "|") >-> (\_ -> Or)
+opAppCons =  (match ":") >-> (\_ -> AppCons)
+opNegate =  (match "!") >-> (\_ -> Negate)
+opUnitaryMinus =  (match "-") >-> (\_ -> UnitaryMinus)
 
+op1 = opNegate ! opUnitaryMinus
 op4 = opEquals ! opLessEq ! opMoreEq ! opNotEq ! opLess ! opMore
 op6 = opAdd ! opSub
 op7 = opMult ! opDiv ! opMod
 
-op1 = opNegate ! opUnitaryMinus 
+-- TODO: improve
+identScan = next ? (\x -> case x of {(Id__ a) -> True; (_) -> False;}) >-> (\(Id__ a) -> a)
+intScan = next ? (\x -> case x of {(Int__ a) -> True; (_) -> False;}) >-> (\(Int__ a) -> Int a)
+match b = next ? (\x -> case x of {(String_ a) -> a == b; (_) -> False;}) -- match a string
 
-identScan = (alphaScan >-> (\x -> [x])) # (iter alphaNumUnderScoreScan) >-> cat1
-
-intScan = ((((matchChar '-') >-> (\x->[x])) # (iter digitScan)) >-> cat1 ! (iter digitScan) ? (/="")) >-> (\x -> Int (toNum x))
 
 progParse :: Parser Prog
-progParse = iter (funDeclParse >-> (\x -> FunDecl x) ! varDeclParse >-> (\x -> VarDecl x)) -- ? (/=[]) it doesn't have eq but [] should be generally comparable
+progParse = iter (funDeclParse >-> (\x -> FunDecl x) ! varDeclParse >-> (\x -> VarDecl x)) -- ? (/=[]) it doesn"t have eq but [] should be generally comparable
 
 fArgsParse :: Parser FArgs
-fArgsParse = ((token typeParse # identScan) >-> (\x -> [x])) /?\ (\x -> (matchChar ',') >>| fArgsParse >-> (\y -> x ++ y))
+fArgsParse = (( typeParse # identScan) >-> (\x -> [x])) /?\ (\x -> (match ",") >>| fArgsParse >-> (\y -> x ++ y))
 
 -- accepts empty functions. add check here or check later?
 funDeclParse :: Parser FunDecl
-funDeclParse = (token retTypeParse # identScan >>- (matchChar '(') # (fArgsParse ! tuple []) >>- (matchChar ')') >>- (matchChar '{') # (iter varDeclParse) # (iter stmtParse) >>- (matchChar '}')) >-> (\((((t,i),a),v),s) -> FD t i a v (Seq s))
+funDeclParse = ( retTypeParse # identScan >>- (match "(") # (fArgsParse ! tuple []) >>- (match ")") >>- (match "{") # (iter varDeclParse) # (iter stmtParse) >>- (match "}")) >-> (\((((t,i),a),v),s) -> FD t i a v (Seq s))
 
 funCallParse :: Parser FunCall
-funCallParse = identScan >>- (matchChar '(') # (actArgsParse ! tuple []) >>- (matchChar ')')
+funCallParse = identScan >>- (match "(") # (actArgsParse ! tuple []) >>- (match ")")
 
 actArgsParse :: Parser ActArgs
-actArgsParse = (expParse >-> (\x -> [x])) /?\ (\x -> (matchChar ',') >>| actArgsParse >-> (\y -> x ++ y))
+actArgsParse = (expParse >-> (\x -> [x])) /?\ (\x -> (match ",") >>| actArgsParse >-> (\y -> x ++ y))
 
 retTypeParse :: Parser RetType
-retTypeParse = typeParse >-> (\x -> Type x) ! wordScan ? (=="void") >-> (\x -> Void)
+retTypeParse = typeParse >-> (\x -> Type x) ! (match "void") >-> (\x -> Void)
 
 -- note: each variable has to be initialised!
 varDeclParse :: Parser VarDecl
-varDeclParse = (token typeParse # identScan >>- (matchChar '=') # expParse >>- (matchChar ';')) >-> (\((x, y),z) -> VD x y z)
+varDeclParse = ( typeParse # identScan >>- (match "=") # expParse >>- (match ";")) >-> (\((x, y),z) -> VD x y z)
 
 -- Right recursive expression parser
 nextr :: Parser ExpOp -> Parser Exp -> Parser Exp
@@ -97,34 +94,34 @@ expParse = nextr opOr andParse
     termParse = nextl op7 factorParse
 
 factorParse :: Parser Exp
-factorParse = fcParse ! boolParse ! tupleParse ! op1Parse ! (identScan >-> (\x -> Id x)) ! intScan ! emptyListParse ! (matchChar '(' >>| expParse >>- matchChar ')')
+factorParse = fcParse ! boolParse ! tupleParse ! op1Parse ! (identScan >-> (\x -> Id x)) ! intScan ! emptyListParse ! (match "(" >>| expParse >>- match ")")
   where
-  emptyListParse = matchChar '[' >>- matchChar ']' >-> (\_ -> EmptyList)
-  tupleParse = matchChar '(' >>| expParse >>- matchChar ',' # expParse >>- matchChar ')' >-> (\(x,y) -> Tuple x y)
+  emptyListParse = match "[" >>- match "]" >-> (\_ -> EmptyList)
+  tupleParse = match "(" >>| expParse >>- match "," # expParse >>- match ")" >-> (\(x,y) -> Tuple x y)
   fcParse = funCallParse >-> (\x -> FunCall x)
-  boolParse = wordScan ? (=="true") >-> (\x -> Bool True) ! wordScan ? (=="false") >-> (\x -> Bool False)
+  boolParse = (match "true") >-> (\x -> Bool True) ! (match "false") >-> (\x -> Bool False)
   op1Parse = op1 # factorParse >-> (\(o, x) -> Op1_ o x) -- only accepts factors
     
 
-stmtParse = (funCallParse  >>- (matchChar ';') >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! returnParse ! assignParse ! whileParse
+stmtParse = (funCallParse  >>- (match ";") >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! returnParse ! assignParse ! whileParse
 
-curlyParse = matchChar '{' >>| iter stmtParse >>- matchChar '}' >-> (\x -> Seq x)
+curlyParse = match "{" >>| iter stmtParse >>- match "}" >-> (\x -> Seq x)
 
 ifElseParse :: Parser Stmt
-ifElseParse = ((wordScan ? (=="if")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(e,s) -> (If e s))) /?\ \(If e s) -> (wordScan ? (=="else")) >>| stmtParse >-> (\c -> (IfElse e s c))
+ifElseParse = (((match "if")) >>| (match "(") >>| expParse  >>- (match ")") # stmtParse >-> (\(e,s) -> (If e s))) /?\ \(If e s) -> ((match "else")) >>| stmtParse >-> (\c -> (IfElse e s c))
 
 assignParse :: Parser Stmt
-assignParse = identScan >>- (matchChar '=') # expParse >>- parseEnd >-> (\(x,y) -> Assign x y)
+assignParse = identScan >>- (match "=") # expParse >>- parseEnd >-> (\(x,y) -> Assign x y)
 
-whileParse = (wordScan ? (=="while")) >>| (matchChar '(') >>| expParse  >>- (matchChar ')') # stmtParse >-> (\(x,y) -> While x y)
+whileParse = ((match "while")) >>| (match "(") >>| expParse  >>- (match ")") # stmtParse >-> (\(x,y) -> While x y)
 
-returnParse =  (wordScan ? (=="return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
+returnParse =  ((match "return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
 
 -- not parsing custom type id yet, not sure why we should
-typeParse = wordScan ? (=="int") >-> (\_ -> Int_) ! wordScan ? (=="int") >-> (\_ -> Bool_) ! parseTuple ! parseList
+typeParse = (match "int") >-> (\_ -> Int_) ! (match "int") >-> (\_ -> Bool_) ! parseTuple ! parseList
     where
-    parseTuple = matchChar '(' >>| typeParse >>- matchChar ',' # typeParse >>- matchChar ')' >-> (\(x,y) -> Tuple_ x y)
-    parseList = matchChar '[' >>| typeParse >>- matchChar ']' >-> (\x -> List_ x)
+    parseTuple = match "(" >>| typeParse >>- match "," # typeParse >>- match ")" >-> (\(x,y) -> Tuple_ x y)
+    parseList = match "[" >>| typeParse >>- match "]" >-> (\x -> List_ x)
 
-parseEnd = matchChar ';'type Parser a = [Token] -> Maybe(a, [Token])
+parseEnd = match ";"
 

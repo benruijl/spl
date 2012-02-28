@@ -7,12 +7,17 @@ module Combinators where
 -- >>|: Sequence operator that discards the first result
 -- >>-: Discards second result
 
--- scanner converts a string to a tuple of what's parsed and the remaining string
-type Scanner a = String -> Maybe (a, String)
+data Token = Int__ Int | Id__ String | String_ String deriving Show
+type Scanner a = [Token] -> Maybe(a, [Token])
+type Parser a = Scanner a
 
 -- Returns (a,cs)
 tuple :: a -> Scanner a
 tuple a cs = Just(a,cs)
+
+next :: Scanner Token
+next (c:cs) = Just(c, cs)
+next _ = Nothing
 
 -- Scan and check result
 infixl 7 ?
@@ -80,3 +85,11 @@ infixl 6 >>-  -- Discards second result
     Just (a, cs') -> case n cs' of
         Nothing -> Nothing
         Just (b, cs2) -> Just(a, cs2)
+
+cat :: (a, [a]) -> [a]
+cat (hd, tl) = hd:tl
+
+-- iterate parsing until an error is met
+-- warning: iter returns an empty list instead of Nothing
+iter :: Scanner a -> Scanner [a]
+iter p = (p # iter p) >-> cat ! tuple []

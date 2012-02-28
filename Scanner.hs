@@ -9,6 +9,7 @@ module Scanner where
 
 import Char
 import Combinators
+import AST
 
 data Token = Exp_ Exp | String String
 
@@ -33,19 +34,11 @@ alphaNumUnderScoreScan = char ? (\x -> isAlphaNum x  || x == '_')   -- ONE TOKEN
 matchChar c = char ? (==c)  -- ONE TOKEN
 matchCharList cs = char ? (flip elem cs)
 
-cat :: (a, [a]) -> [a]
-cat (hd, tl) = hd:tl
-
 cat1 :: ([a], [a]) -> [a]
 cat1 (hd, tl) = hd++tl
 
 cat2 :: (a, a) -> [a]
 cat2 (hd, snd) = [hd , snd]
-
--- iterate parsing until an error is met
--- warning: iter returns an empty list instead of Nothing
-iter :: Scanner a -> Scanner [a]
-iter p = (p # iter p) >-> cat ! tuple []
 
 wordScan :: Scanner String             -- ONE TOKEN
 wordScan = token(iter alphaScan)  
