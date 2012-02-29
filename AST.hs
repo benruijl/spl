@@ -57,18 +57,26 @@ instance Show Stmt where
     show (Assign ident exp) = ident ++ " = " ++ show exp ++ ";"
     show (FunCall_ (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ");"
     show (Return exp) = "return " ++ show exp ++ ";"
+
+-- shows ExpOp_ and filters parentheses
+showOp2 (ExpOp_ o e1 e2) 
+   | elem o op7 = show e1 ++ " " ++ show o ++ " " ++ par (op7 ++ op6 ++ op5 ++ op3 ++ op2) e2
+   | elem o op6 = show e1 ++ " " ++ show o ++ " " ++ par (op6 ++ op5 ++ op3 ++ op2) e2 
+   | elem o op5 = par (op5 ++ op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ show e2
+   | elem o op3 = par (op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ show e2
+   | elem o op2 = par (op2) e1 ++ " " ++ show o ++ " " ++ show e2
+   | otherwise = show e1 ++ " " ++ show e2
+   where
+   par list x@(ExpOp_ o2 e3 e4) = if (elem o2 list) then "(" ++ show x ++ ")" else show x
+   par list x = show x
+   op7 = [Mul, Div, Mod]
+   op6 = [Add, Sub]
+   op5 = [AppCons]
+   op3 = [And]
+   op2 = [Or]
    
 instance Show Exp where
-   -- Only show parentheses when required. These are probably not all cases
-   -- TODO: add parentheses for Or, And, AppCons
-   show (ExpOp_ o e1 e2)
-      | o == Mul || o == Div = parcheck e1 ++ " " ++ show o ++ " " ++ parcheck e2
-      | o == Sub = show e1 ++ " " ++ show o ++ " " ++ parcheck e2 
-   	  | otherwise =  show e1 ++ " " ++ show o ++ " " ++ show e2
-   	  where
-   	  parcheck s@(ExpOp_ o e1 e2) = if (o == Add || o == Sub) then "(" ++ show s ++ ")" else show s
-   	  parcheck s = show s
-   
+   show k@(ExpOp_ o e1 e2) = showOp2 k
    show (Int int) = show int
    show (Id id) = id
    show (Op1_ op e) = show op++ "(" ++ show e ++ ")"
