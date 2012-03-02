@@ -9,12 +9,12 @@ import AST
 
 parseSuccess :: Maybe (a, [Token]) -> a
 parseSuccess (Just (x,[])) = x
-parseSuccess (Just (_,xs)) = error $ "Parse error at '" ++ show xs ++ "'"
+parseSuccess (Just (_,xs)) = error $ "Parse error starting at block'" ++ show (take 4 xs) ++ "'"
 parseSuccess Nothing = error "Parse error: could not read anything."
 
 scanSuccess :: Maybe ([Token], String) -> [Token]
 scanSuccess (Just (x,"")) = x
-scanSuccess (Just (_,xs)) = error $ "Scan error at '" ++ xs ++ "'"
+scanSuccess (Just (_,xs)) = error $ "Scan error at block '" ++ (take 20 xs) ++ "'"
 scanSuccess Nothing = error "Scan error: could not read anything."
 
 filterNL = filter (flip notElem "\r\n\t")
