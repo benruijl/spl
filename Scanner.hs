@@ -11,8 +11,13 @@ import Char
 import Combinators
 import AST
 
-data Token = Int__ Int | Id__ String | String_ String deriving Show
+data Token = Int__ Int | Id__ String | String_ String
 type Scanner a = CoreScanner a String
+
+instance Show Token where
+   show (Int__ x) = "<" ++ show x ++ ">"
+   show (Id__ x) = "<" ++ x ++ ">"
+   show (String_ x) = x
 
 twoChar = token $ next # next >-> cat2
 

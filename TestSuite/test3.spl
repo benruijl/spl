@@ -38,6 +38,6 @@ void main ()
 	int prodList = product (list);
 	int prodRev = product (rev);
 	
-	if((rev (rev) == list) && (prodList == prodRev))print (true);
+	if((reverse (rev) == list) && (prodList == prodRev))print (true);
 	else print (false);
 }

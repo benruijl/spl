@@ -9,7 +9,7 @@ import AST
 
 parseSuccess :: Maybe (a, [Token]) -> a
 parseSuccess (Just (x,[])) = x
-parseSuccess (Just (_,xs)) = error $ "Parse error starting at block'" ++ show (take 4 xs) ++ "'"
+parseSuccess (Just (_,xs)) = error $ "Parse error starting at block'" ++ concat (map show xs) ++ "'"
 parseSuccess Nothing = error "Parse error: could not read anything."
 
 scanSuccess :: Maybe ([Token], String) -> [Token]

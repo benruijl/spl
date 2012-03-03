@@ -110,7 +110,7 @@ stmtParse = (funCallParse  >>- (match ";") >-> (\x -> FunCall_ x)) ! curlyParse 
 curlyParse = match "{" >>| iter stmtParse >>- match "}" >-> (\x -> Seq x)
 
 ifElseParse :: Parser Stmt
-ifElseParse = (((match "if")) >>| (match "(") >>| expParse  >>- (match ")") # stmtParse >-> (\(e,s) -> (If e s))) /?\ \(If e s) -> ((match "else")) >>| stmtParse >-> (\c -> (IfElse e s c))
+ifElseParse = (((match "if")) >>| (match "(") >>| expParse  >>- (match ")") # stmtParse >-> (\(e,s) -> (If e s))) /?\ (\(If e s) -> (match "else") >>| stmtParse >-> (\c -> (IfElse e s c)))
 
 assignParse :: Parser Stmt
 assignParse = idScan >>- (match "=") # expParse >>- parseEnd >-> (\(x,y) -> Assign x y)
