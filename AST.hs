@@ -76,7 +76,7 @@ showOp2 (ExpOp_ o e1 e2) -- should op4 be here in the first place i've added it 
    op4 = [Equals, LessEq, MoreEq, NotEq, Less, More]
    op3 = [And]
    op2 = [Or]
-   
+ 
 instance Show Exp where
    show k@(ExpOp_ o e1 e2) = showOp2 k
    show (Int int) = show int

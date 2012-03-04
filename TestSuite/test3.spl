@@ -13,7 +13,7 @@ int product ( [ int ] list )
 [ int ] fromTo ( int from, int to)
 {
 	if ( from <= to )
-		return from : fromTo ( (-1)*from + 1, to ) ;
+		return from : fromTo ( from + 1, to ) ;
 	else return [ ] ;
 }
 

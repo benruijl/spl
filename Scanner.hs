@@ -18,7 +18,7 @@ instance Show Token where
    show (Int__ x) = "<" ++ show x ++ ">"
    show (Id__ x) = "<" ++ x ++ ">"
    show (String_ x) = x
-
+   
 twoChar = token $ next # next >-> cat2
 
 -- converts a string to int. Haskell doensn't have this function, strangely
@@ -32,6 +32,7 @@ numberScan = (token (iter digitScan) ? (\x -> x /= [])) >-> (\x -> Int__ (toNum 
 alphaScan = next ? isAlpha
 digitScan = next ? isDigit
 spaceScan = matchCharList "\t\r\n "
+-- commentScan f = (fallThrough twoChar (\x -> x=="//") f) >-> (\x->String_ x)
 alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = next ? (\x -> isAlphaNum x || x == '_')
 matchChar c = next ? (==c)
@@ -58,4 +59,4 @@ tokScan = (token ((twoChar ? inList) ! ((next >-> (\x -> [x])) ? inList))) >-> (
   inList x = elem x tokList
   
 lineScan :: Scanner [Token]
-lineScan =  iter (tokScan ! identScan ! numberScan)
+lineScan = iter (tokScan ! identScan ! numberScan) -- iter (commentScan (tokScan ! identScan ! numberScan))

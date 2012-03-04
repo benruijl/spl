@@ -25,6 +25,13 @@ infixl 7 ?
      Nothing -> Nothing -- parsing failed
      Just (c, cs) -> if b c then Just(c,cs) else Nothing
 
+{-	 
+fallThrough p b d cs =
+			case p cs of
+				Nothing -> d cs -- parsing failed but don't care if twoChar fails
+				Just (c', cs') -> if b c' then tuple "" "" else d cs -- only care to return [] if // is encountered
+-}
+				
 -- A or B: Tries parsing with CoreScanner A. If it succeeds, it returns. Else CoreScanner B is tried.
 infixl 3 !
 (!) :: CoreScanner a b -> CoreScanner a b -> CoreScanner a b

@@ -50,7 +50,6 @@ idScan = next ? (\x -> case x of {(Id__ a) -> True; (_) -> False;}) >-> (\(Id__ 
 intScan = next ? (\x -> case x of {(Int__ a) -> True; (_) -> False;}) >-> (\(Int__ a) -> Int a)
 match b = next ? (\x -> case x of {(String_ a) -> a == b; (Id__ a) -> a == b; (_) -> False;}) -- match a string or id
 
-
 progParse :: Parser Prog
 progParse = iter (funDeclParse >-> (\x -> FunDecl x) ! varDeclParse >-> (\x -> VarDecl x))
 
