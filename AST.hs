@@ -11,16 +11,10 @@ type FArgs = [(Type, Id)]
 type ActArgs = [Exp]
 type FunCall = (Id, ActArgs)
 
--- AST structure, not the same as the grammar structure
 data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1_ Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp
-
 data RetType = Type Type | Void
 data Type = Id_ Id | Int_ | Bool_ | Tuple_ Type Type | List_ Type
-
 data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp
-
--- instead of If and IfElse we could have had If Exp Stmt (Maybe Stmt) but let's leave it like this for now it works
-
 data Op1 = Negate | UnitaryMinus
 data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mul | Div deriving Eq
 

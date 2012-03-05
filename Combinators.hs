@@ -6,6 +6,7 @@ module Combinators where
 -- >>>: Extract a CoreScanners result
 -- >>|: Sequence operator that discards the first result
 -- >>-: Discards second result
+-- iter: Parse until an error is met
 
 type CoreScanner a b = b -> Maybe (a, b)
 
@@ -85,10 +86,6 @@ infixl 6 >>- -- Discards second result
         Nothing -> Nothing
         Just (b, cs2) -> Just(a, cs2)
 
-cat :: (a, [a]) -> [a]
-cat (hd, tl) = hd:tl
-
--- iterate parsing until an error is met
 -- warning: iter returns an empty list instead of Nothing
 iter :: CoreScanner a b -> CoreScanner [a] b
-iter p = (p # iter p) >-> cat ! tuple []
+iter p = (p # iter p) >-> (\(a,b) -> a:b) ! tuple []
