@@ -1,0 +1,36 @@
+(int,int) tupleIntInt = (0,0);
+(bool,bool) tupleBoolBool = (true,false);
+
+void fA()
+{
+	int varIntA = 0;
+    bool varBoolA = false;
+	(int,bool) tupleA = (varIntA,varBoolA);
+	[int] listIntA = [varInta];
+	[bool] listBoolA = [varBoola];
+	
+	fB();
+	fA();
+}
+
+void fB()
+{
+	int varIntB = 0;
+	bool varBoolb = true;
+	(bool,int) tupleA = (varBoolb,varIntb);
+	[int] listIntA = [varIntb];
+	[bool] lisBoolA = [varBoolb];
+	
+	fA();
+	fB();
+}
+
+void main()
+{
+	TupleIntInt = (1,1);
+	TupleBoolBool = (false,true);
+	
+	fA();
+	fB();
+}
+

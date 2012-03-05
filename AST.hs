@@ -45,9 +45,9 @@ instance Show FunDecl where
 	
 instance Show Stmt where 
     show (Seq stmt) = unlines $ map show stmt
-    show (If exp stmt) = "If(" ++ show exp ++ ")\n{\n" ++ show stmt ++ "}"
+    show (If exp stmt) = "If(" ++ show exp ++ ")\n{\n" ++ indentML(show stmt) ++ "}"
     show (IfElse exp stmt1 stmt2) = "If(" ++ show exp ++ ")" ++ "\n{\n" ++ indentML (show stmt1) ++ "}\nelse\n{\n" ++ indentML (show stmt2) ++ "}"
-    show (While exp stmt) = "While(" ++ show exp ++ ")\n{\n" ++ indentML (show stmt) ++ "}"
+    show (While exp stmt) = "while(" ++ show exp ++ ")\n{\n" ++ indentML (show stmt) ++ "}"
     show (Assign ident exp) = ident ++ " = " ++ show exp ++ ";"
     show (FunCall_ (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ");"
     show (Return exp) = "return " ++ show exp ++ ";"
