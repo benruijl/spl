@@ -17,13 +17,11 @@ scanSuccess (Just (x,"")) = x
 scanSuccess (Just (_,xs)) = error $ "Scan error at block '" ++ (take 20 xs) ++ "'"
 scanSuccess Nothing = error "Scan error: could not read anything."
 
-filterNL = filter (flip notElem "\r\n\t")
-
 -- read a file
 main = do
    [s] <- getArgs
    f <- readFile s
-   let prog =  (parseSuccess . progParse. scanSuccess. lineScan . filterNL) f
+   let prog =  (parseSuccess . progParse. scanSuccess. lineScan) f
    mapM_ putStrLn $ prettyPrint prog
 
 

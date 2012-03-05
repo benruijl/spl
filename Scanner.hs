@@ -32,7 +32,9 @@ numberScan = (token (iter digitScan) ? (\x -> x /= [])) >-> (\x -> Int__ (toNum 
 alphaScan = next ? isAlpha
 digitScan = next ? isDigit
 spaceScan = matchCharList "\t\r\n "
--- commentScan f = (fallThrough twoChar (\x -> x=="//") f) >-> (\x->String_ x)
+
+-- note: no comments at the end of the file
+commentScan x = iter ((twoChar ? (=="//")) # iter (next ? (/='\n'))) >>| x
 alphaNumUnderScoreScan :: Scanner Char
 alphaNumUnderScoreScan = next ? (\x -> isAlphaNum x || x == '_')
 matchChar c = next ? (==c)
@@ -59,4 +61,4 @@ tokScan = (token ((twoChar ? inList) ! ((next >-> (\x -> [x])) ? inList))) >-> (
   inList x = elem x tokList
   
 lineScan :: Scanner [Token]
-lineScan = iter (tokScan ! identScan ! numberScan) -- iter (commentScan (tokScan ! identScan ! numberScan))
+lineScan = iter (commentScan (tokScan ! identScan ! numberScan))

@@ -7,14 +7,16 @@ int product ( [ int ] list )
 {
 	if ( isEmpty ( list )) 
 		return 1;
-	else return head ( list ) * product ( tail ( list ) ) ;
+	else
+		return head ( list ) * product ( tail ( list ) ) ;
 }
 
 [ int ] fromTo ( int from, int to)
 {
 	if ( from <= to )
 		return from : fromTo ( from + 1, to ) ;
-	else return [ ] ;
+	else
+		return [ ] ;
 }
 
 [ int ] reverse ( [ int ] list )
