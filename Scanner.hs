@@ -7,7 +7,7 @@ module Scanner where
 -- >>|: Sequence operator that discards the first result
 -- >>-: Discards second result
 
-import Char
+import Data.Char
 import Combinators
 import AST
 

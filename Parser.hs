@@ -2,7 +2,6 @@ module Parser where
 
 import AST
 import Scanner
-import Char
 import Combinators
 
 type Parser a = CoreScanner a [Token]
