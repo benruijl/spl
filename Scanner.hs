@@ -41,7 +41,7 @@ matchCharList cs = next ? (flip elem cs)
 
 -- note: keywords are also parsed as ids!
 identScan :: Scanner Token
-identScan = (token(alphaScan # iter alphaNumUnderScoreScan)) >-> (\x->Id__ (cat x))
+identScan = (token(alphaScan # iter alphaNumUnderScoreScan)) >-> (\(x,s) -> Id__ (x : s))
 
 -- discards the white spaces before and after the parsed result
 token :: Scanner a -> Scanner a

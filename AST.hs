@@ -75,7 +75,7 @@ instance Show Exp where
    show (Int int) = show int
    show (Id id) = id
    show (Op1_ op e) = show op++ "(" ++ show e ++ ")"
-   show (Bool bool) = show bool
+   show (Bool bool) = if (bool) then "true" else "false"
    show (FunCall (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ")"
    show EmptyList = "[]"
    show (Tuple e1 e2) = "(" ++ show e1 ++ "," ++ show e2 ++ ")"
