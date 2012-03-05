@@ -3,6 +3,7 @@ int facL ( int n )
 	return product (fromTo ( 1, n ) ) ; 
 }
 
+
 int product ( [ int ] list )
 {
 	if ( isEmpty ( list )) 

@@ -33,8 +33,14 @@ alphaScan = next ? isAlpha
 digitScan = next ? isDigit
 spaceScan = matchCharList "\t\r\n "
 
+
 -- note: no comments at the end of the file
-commentScan x = iter ((twoChar ? (=="//")) # iter (next ? (/='\n'))) >>| x
+commentScan x =  starScanner >>| slashScanner >>| x
+		where
+			firstStarScanner = (twoChar ? (=="/*")) # starScanner
+			starScanner = (iter (next ? (/='*'))) >>| (twoChar ? (=="*/"))
+			slashScanner = iter ((twoChar ? (=="//")) # (iter (next ? (/='\n'))))
+			
 alphaNumUnderScoreScan = next ? (\x -> isAlphaNum x || x == '_')
 matchChar c = next ? (==c)
 matchCharList cs = next ? (flip elem cs)
