@@ -59,14 +59,13 @@ instance Show Stmt where
     show (Return exp) = "return " ++ show exp ++ ";"
 
 -- shows ExpOp_ and filters parentheses
-showOp2 (ExpOp_ o e1 e2) -- should op4 be here in the first place i've added it here for showing i.e. ==
-   | elem o op7 = show e1 ++ " " ++ show o ++ " " ++ par (op7 ++ op6 ++ op5 ++ op4 ++ op3 ++ op2) e2
-   | elem o op6 = show e1 ++ " " ++ show o ++ " " ++ par (op6 ++ op5 ++ op4 ++ op3 ++ op2) e2 
-   | elem o op5 = par (op5 ++ op4 ++ op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ show e2
-   | elem o op4 = par (op4 ++ op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ show e2
-   | elem o op3 = par (op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ show e2
+showOp2 (ExpOp_ o e1 e2)
+   | elem o op7 = par (op6 ++ op5 ++ op4 ++ op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ par (op7 ++ op6 ++ op5 ++ op4 ++ op3 ++ op2) e2
+   | elem o op6 = par (op5 ++ op4 ++ op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ par (op6 ++ op5 ++ op4 ++ op3 ++ op2) e2 
+   | elem o op5 = par (op5 ++ op4 ++ op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ par (op4 ++ op3 ++ op2)e2
+   | elem o op4 = par (op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ par (op2)e2
+   | elem o op3 = par (op3 ++ op2) e1 ++ " " ++ show o ++ " " ++ par (op2)e2
    | elem o op2 = par (op2) e1 ++ " " ++ show o ++ " " ++ show e2
-   | otherwise = show e1 ++ " " ++ show o ++ " " ++ show e2
    where
    par list x@(ExpOp_ o2 e3 e4) = if (elem o2 list) then "(" ++ show x ++ ")" else show x
    par list x = show x
