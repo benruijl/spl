@@ -1,0 +1,22 @@
+[t] push (t add, [t] list)
+{
+	return add : list;
+}   
+
+(t,[t]) pop ([t] list)
+{
+	return (head (list),tail (list));
+}
+
+t top ([t] list)
+{
+	return (head (list));
+}
+
+
+void main ()
+{
+	[int] list = 1 : 2 : [];
+	list = push(3,list);
+	list = push(4,list);
+}
