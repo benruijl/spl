@@ -1,0 +1,4 @@
+void main()
+{
+	([([int],[bool])],[([int],[bool])]) supertype = ([([1,2],[true,false]),([3,4],[false,true])],[([3,4],[false,true]),([1,2],[true,false])]);
+}
