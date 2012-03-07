@@ -37,7 +37,7 @@ spaceScan = matchCharList "\t\r\n "
 -- note: no comments at the end of the file
 commentScan x =  starScanner >>| slashScanner >>| x
 		where
-			starScanner = iter ((twoChar ? (=="/*")) # (iter ((next ? (/='*')) ! (next ? (/='/')))))
+			starScanner = iter ((twoChar ? (=="/*")) # (iter ((next ? (/='*') >-> (\x -> [x])) ! (twoChar ? (/="*/"))) # twoChar))
 			slashScanner = iter ((twoChar ? (=="//")) # (iter (next ? (/='\n'))))
 			
 alphaNumUnderScoreScan = next ? (\x -> isAlphaNum x || x == '_')
