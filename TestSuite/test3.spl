@@ -20,6 +20,7 @@ int product ( [ int ] list )
 		return [ ] ;
 }
 
+/* Reverse */
 [ int ] reverse ( [ int ] list )
 {
 	[ int ] accu = [ ] ;
