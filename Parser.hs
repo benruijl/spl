@@ -117,7 +117,7 @@ whileParse = ((match "while")) >>| (match "(") >>| expParse  >>- (match ")") # s
 
 returnParse =  ((match "return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
 
-typeParse = (match "int") >-> (\_ -> Int_) ! (match "bool") >-> (\_ -> Bool_) ! parseTuple ! parseList ! idScan >-> (\x -> Id_ x)
+typeParse = (match "int") >-> (\_ -> Int_) ! (match "bool") >-> (\_ -> Bool_) ! parseTuple ! parseList ! idScan >-> (\x -> Generic_ x)
     where
     parseTuple = match "(" >>| typeParse >>- match "," # typeParse >>- match ")" >-> (\(x,y) -> Tuple_ x y)
     parseList = match "[" >>| typeParse >>- match "]" >-> (\x -> List_ x)
