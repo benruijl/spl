@@ -8,8 +8,8 @@ type Sem = Env -> (Val, Env)
 data Val = Int__ Int | Bool__ Bool | Tuple__ Val Val | List__ [Val] | Unknown Int | Undefined deriving (Show) -- like AbstractTypeSort
 
 pop :: [a] -> [a]
-pop [hdL:[]] = [hdL]
-pop [hdL:tlL] = tlL
+pop (hdL:[]) = [hdL]
+pop (hdL:tlL) = tlL
 
 emptyVal = \var -> Undefined
 emptyFun = \fun -> Undefined
@@ -56,24 +56,24 @@ var |-> val = \(ev,ef,outCh,flg) -> check ((hd ev) var) (ev,ef,outCh,flg)
 							
 --}
 
-mapSem :: [VarDecl] -> Sem
-mapSem [hdL:[]] = sem hdL
-mapSem [hdL:tlL] = sem hdL >>| mapSem tlL
-
 {--
+mapSem :: [VarDecl] -> Sem
+mapSem (hdL:[]) = sem hdL
+mapSem (hdL:tlL) = sem hdL >>| mapSem tlL
+
 instance Semantics VarDecl
 	where
 		sem var = (sem (snd var)) >>- \expVal -> (snd(fst var)) |-> expVal
---}
+	
 
 instance Semantics FunDecl
 	where
-		sem(FD _ _ varDecls stmts) =   (mapSem varDecls) >>| (sem stmts)
+		sem(FD _ _ varDecls stmts) =   (mapSem varDecls) >>| (sem stmts)	--}
 
 
 instance Semantics Exp
 	where
-		sem (Int n)	     = rtn (Int_ n)
+		sem (Int n)	     = rtn (Int__ n)
 		sem (Id v)		 = get v
 		sem (ExpOp_ op2 e1 e2) = 	sem e1 
 							>>-	\l -> sem e2
@@ -89,19 +89,19 @@ instance Semantics Stmt
 --}
 
 			sem (If c tt)       = 	sem c
-												>>- \(Bool_ i) -> if (i == True) then (sem tt) else (\e->(0,e))
+												>>- \(Bool__ i) -> if (i == True) then (sem tt) else (\e->(0,e))
 
 
 			sem (IfElse c tt ff)	= 	sem c
-							>>- \(Bool_ i) -> if (i == True) then (sem tt) else (sem ff)
+							>>- \(Bool__ i) -> if (i == True) then (sem tt) else (sem ff)
 
-			sem (While c bdy)	= 	sem c >>- \(Bool_ i) -> if (i == True) then
+			sem (While c bdy)	= 	sem c >>- \(Bool__ i) -> if (i == True) then
 															(	
 																sem bdy
 																>>| sem (While c bdy)
 															) 
-															rtn (Bool_ i)
-															else rtn (Bool_ i)
+															rtn (Bool__ i)
+															else rtn (Bool__ i)
 
 	
 			sem (Seq stm1 stm2)	=	sem stm1 
