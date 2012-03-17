@@ -2,7 +2,7 @@ import AST
 
 type EnvVar = Id -> Val
 type EnvFun = Id -> FunDecl
-type Env = ([EnvVar],[EnvFun],[String],Bool) -- why [String] and Bool?
+type Env = ([EnvVar],EnvFun,Bool) -- we need Bool in order to be aware of context for example if(cond) return then statements executed afterwards should not modify the environment
 type Sem = Env -> (Val, Env)
 
 data Val = Int__ Int | Bool__ Bool | Tuple__ Val Val | List__ [Val] | Unknown Int | Undefined deriving (Show) -- like AbstractTypeSort
@@ -19,11 +19,11 @@ class Semantics a  where
 	sem :: a -> Sem
 
 rtn :: Val -> Sem
-rtn n = \(ev,ef,outCh,flg) -> (n, ((pop ev),(pop ef),outCh,flg))
+rtn n = \(ev,ef,flg) -> (n, ((pop ev),ef,flg))
 
 infixl 1 >>-
 (>>-) :: Sem -> (Val -> Sem) -> Sem
-x >>- y = \(ev,ef,outCh,flg) -> (\(i,(ev,ef,outCh,flg)) -> if (flg) then (i,(ev,ef,outCh,True)) else ((y i) (ev,ef,outCh,flg))) (x (ev,ef,outCh,flg))
+x >>- y = \(ev,ef,flg) -> (\(i,(ev,ef,flg)) -> if (flg) then (i,(ev,ef,True)) else ((y i) (ev,ef,flg))) (x (ev,ef,flg))
 
 infixl 1 >>|
 (>>|) :: Sem -> Sem -> Sem 
@@ -33,33 +33,31 @@ get :: Id -> Sem
 get var = (readLoc var) >>- next
 		where	
 			readLoc :: Id -> Sem
-			readLoc var = \(ev,ef,outCh,flg) -> ((head ev var), (ev,ef,outCh,flg))
+			readLoc var = \(ev,ef,flg) -> ((head ev var), (ev,ef,flg))
 			next Undefined  = readGlob var
 				where	
 					readGlob :: Id -> Sem
-					readGlob var = \(ev,ef,outCh,flg) -> ((last ev var), (ev,ef,outCh,flg))
+					readGlob var = \(ev,ef,flg) -> ((last ev var), (ev,ef,flg))
 			next x	= rtn x
-{--
+{-
 infixl 1 |->
 (|->) :: Id Val -> Sem
-var |-> val = \(ev,ef,outCh,flg) -> check ((hd ev) var) (ev,ef,outCh,flg)
+var |-> val = \(ev,ef,flg) -> check ((hd ev) var) (ev,ef,flg)
 	    	  where
 	    	  		check :: Val -> Sem
 	  				check UndefVal = writeGlob var val 
 							where
 								writeGlob :: Id Val -> Sem
-								writeGlob v i = \(ev,ef,outCh,flg) -> (i, (reverse ([\v'-> if (v' == v) i (last (ev v'))]++(tail(reverse ev))),ef,outCh,flg))
+								writeGlob v i = \(ev,ef,flg) -> (i, (reverse ([\v'-> if (v' == v) i (last (ev v'))]++(tail(reverse ev))),ef,flg))
 	  				check _ = writeLoc var val
 							where
 								writeLoc :: Id Val -> Sem
-								writeLoc v i = \(ev,ef,outCh,flg) -> (i, ([\v'-> if (v' == v) i (head (ev v'))]++(tail ev),ef,outCh,flg))
+								writeLoc v i = \(ev,ef,flg) -> (i, ([\v'-> if (v' == v) i (head (ev v'))]++(tail ev),ef,flg))
 							
---}
-
-{--
 mapSem :: [VarDecl] -> Sem
 mapSem (hdL:[]) = sem hdL
 mapSem (hdL:tlL) = sem hdL >>| mapSem tlL
+
 
 instance Semantics VarDecl
 	where
@@ -68,8 +66,9 @@ instance Semantics VarDecl
 
 instance Semantics FunDecl
 	where
-		sem(FD _ _ varDecls stmts) =   (mapSem varDecls) >>| (sem stmts)	--}
+		sem(FD _ _ varDecls stmts) =   (mapSem varDecls) >>| (sem stmts)
 
+-}
 
 instance Semantics Exp
 	where
@@ -89,7 +88,7 @@ instance Semantics Stmt
 --}
 
 			sem (If c tt)       = 	sem c
-												>>- \(Bool__ i) -> if (i == True) then (sem tt) else (\e->(0,e))
+												>>- \(Bool__ i) -> if (i == True) then (sem tt) else (\e->(Undefined,e))
 
 
 			sem (IfElse c tt ff)	= 	sem c
@@ -97,12 +96,10 @@ instance Semantics Stmt
 
 			sem (While c bdy)	= 	sem c >>- \(Bool__ i) -> if (i == True) then
 															(	
-																sem bdy
-																>>| sem (While c bdy)
+																sem bdy >>| sem (While c bdy)
 															) 
 															rtn (Bool__ i)
 															else rtn (Bool__ i)
-
 	
 			sem (Seq stm1 stm2)	=	sem stm1 
 								>>| sem stm2
@@ -141,7 +138,7 @@ toFun2 Add = opIntIntToVal (+)
 toFun2 Sub = opIntIntToVal (-) 
 toFun2 Mul = opIntIntToVal (*)
 toFun2 Mod = opIntIntToVal (rem)
-toFun2 Div = opIntIntToVal (/)
+toFun2 Div = opIntIntToVal (div)
 toFun2 NotEq = opIntBoolToVal (/=)
 toFun2 Less	= opIntBoolToVal (<)
 toFun2 More = opIntBoolToVal (>)
