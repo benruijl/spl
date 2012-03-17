@@ -1,11 +1,20 @@
 import AST
 
-data AbstractType = Int__ | Bool__ | Tuple__ AbstractType AbstractType | List__ AbstractType | Unknown Int | Undefined deriving (Eq, Show)
+-- All variables are typed in SPL, except [], so add a type for that
+data AbstractType = Generic Id | Int__ | Bool__ | Tuple__ AbstractType AbstractType | List__ AbstractType | EmptyList_ | Undefined deriving (Eq, Show)
 
--- sketch of the environment
-type Env = (([(Id, Int)],[(Id, FunDecl)]),[(Id, VarDecl)])
+type Env = Id -> AbstractType
+type Sem = Env -> (AbstractType, Env)
 
-emptyEnv = (([],[]),[])
+emptyEnv = \_ -> Undefined
+
+-- Read variable from the environment
+read :: Id -> Sem
+read v = \e -> (e v, e)
+
+-- Write a variable to the environment
+write :: Id -> AbstractType -> Sem
+write i t = \e -> (t, \x -> if (x== i) then t else e x)
 
 -- TODO: get type of Id from the environment, fix EmptyList and add support for booleans
 getType1 :: Env -> Exp -> AbstractType
@@ -13,7 +22,7 @@ getType1 e (Int _) = Int__
 getType1 e (Bool _) = Bool__
 getType1 e (ExpOp_ o a b) = if getType1 e a == getType1 e b && getType1 e a == Int__ then Int__ else error $ "Expected type int " ++ "," ++ " int but got " ++ show (getType1 e a) ++ "," ++ show (getType1 e b)
 getType1 e (Op1_ o a) = if (getType1 e a == Int__) then Int__ else error $ "Expected int, but got " ++ show (getType1 e a)
-getType1 e EmptyList = Unknown 1 -- dummy id
+getType1 e EmptyList = EmptyList_
 getType1 e (Tuple a b) = Tuple__ (getType1 e a) (getType1 e b)
 --getType1 e (Id_ v) = envGetType e v
 --getType1 e (FunCall (f, _)) = getReturnType e f
