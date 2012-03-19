@@ -12,8 +12,9 @@ type ActArgs = [Exp]
 type FunCall = (Id, ActArgs)
 
 data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1_ Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp
+-- TODO: unify RetType and Type
 data RetType = Type Type | Void
-data Type = Generic_ Id | Int_ | Bool_ | Tuple_ Type Type | List_ Type deriving Eq
+data Type = Generic_ Id | Int_ | Bool_ | Tuple_ Type Type | List_ Type | Undefined deriving Eq
 data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp
 data Op1 = Negate | UnitaryMinus
 data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mul | Div deriving Eq
