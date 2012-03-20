@@ -6,15 +6,14 @@ type Prog = [Decl]
 data Decl = VarDecl VarDecl | FunDecl FunDecl
 
 data VarDecl = VD Type Id Exp
-data FunDecl = FD RetType Id FArgs [VarDecl] Stmt
+data FunDecl = FD Type Id FArgs [VarDecl] Stmt
 type FArgs = [(Type, Id)]
 type ActArgs = [Exp]
 type FunCall = (Id, ActArgs)
 
 data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1_ Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp
 -- TODO: unify RetType and Type
-data RetType = Type Type | Void
-data Type = Generic_ Id | Int_ | Bool_ | Tuple_ Type Type | List_ Type | Undefined deriving Eq
+data Type = Generic_ Id | Int_ | Bool_ | Tuple_ Type Type | List_ Type | Undefined | Void deriving Eq
 data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp
 data Op1 = Negate | UnitaryMinus
 data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mul | Div deriving Eq
@@ -23,12 +22,9 @@ instance Show Type where
 	show (Generic_ x) = x
 	show Int_ = "int"
 	show Bool_ = "bool"
+	show Void = "void"
 	show (Tuple_ x y) = "(" ++ show x ++ "," ++ show y ++ ")"
 	show (List_ x) = "[" ++ show x ++ "]"
-	
-instance Show RetType where
-    show Void = "void"
-    show (Type t) = show t
 
 instance Show Decl where
     show (VarDecl varDecl) = show varDecl

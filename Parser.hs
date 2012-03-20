@@ -65,8 +65,9 @@ funCallParse = idScan >>- (match "(") # (actArgsParse ! tuple []) >>- (match ")"
 actArgsParse :: Parser ActArgs
 actArgsParse = (expParse >-> (\x -> [x])) /?\ (\x -> (match ",") >>| actArgsParse >-> (\y -> x ++ y))
 
+-- allow for void types
 retTypeParse :: Parser RetType
-retTypeParse = typeParse >-> (\x -> Type x) ! (match "void") >-> (\x -> Void)
+retTypeParse = (match "void") >-> (\x -> Void) ! typeParse >-> (\x -> Type x)
 
 -- note: each variable has to be initialised!
 varDeclParse :: Parser VarDecl
