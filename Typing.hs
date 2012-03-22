@@ -10,10 +10,13 @@ type TypeChecker =  Env -> (Type, Env)
 freshVar :: TypeChecker
 freshVar (x, m) = (Generic_ ("_a" ++ show (x + 1)), (x + 1, m))
 
-addMap :: Type -> TypeChecker
-addMap x (i, m) = (newVar, (i + 1, m ++ [(x, newVar)]))
-	where
-	newVar = Generic_ ("_a" ++ show (i + 1))
+-- Add map to environment and check if it is compatible
+addMap :: Type -> Type -> Env -> Env
+addMap a@(Generic_ _) b e@(i, m) = case find ((==a).fst) m of
+	Just (_, c@(Generic_ _)) -> addMap b c e -- Add a map from b to c
+	Just (_, c) -> if (c == b) then e else error $ "Cannot unify types: " ++ show b ++ "," ++ show c
+	Nothing -> (i, (a, b) : m)
+addMap _ _ e = e
 
 infixl 6 +=+
 (+=+) :: TypeChecker -> TypeChecker -> Env -> ((Type, Type), Env)
@@ -68,6 +71,7 @@ instance Substitute Type where
 
 fullSubstitute :: Type -> Type -> Prog -> Prog
 fullSubstitute a b c = map (substitute a b) c
+
 
 class TypeCheck a where
 	-- what should this function return? If it only modifies the environment, it is maybe ok as well.
