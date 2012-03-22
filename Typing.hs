@@ -18,6 +18,13 @@ addMap a@(Generic_ _) b e@(i, m) = case find ((==a).fst) m of
 	Nothing -> (i, (a, b) : m)
 addMap _ _ e = e
 
+-- check if the type a is in the right part
+-- useful, because such substitutions are not allowed
+isIncluded :: Type -> Type -> Bool
+isIncluded k (Tuple_ a b) = isIncluded k a || isIncluded k b
+isIncluded k (List_ a) = isIncluded k a
+isIncluded a b = a == b
+
 infixl 6 +=+
 (+=+) :: TypeChecker -> TypeChecker -> Env -> ((Type, Type), Env)
 (+=+) a b e = case a e of
