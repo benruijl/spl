@@ -83,6 +83,10 @@ fullSubstitute a b c = map (substitute a b) c
 class TypeCheck a where
 	-- what should this function return? If it only modifies the environment, it is maybe ok as well.
 	enforce :: a -> Env -> (Type, Env)
+	getType :: a -> Type
+
+instance TypeCheck FunDecl where
+	getType (FD ret name args vars stmts) = Function (map fst args) ret
 
 instance TypeCheck Exp where	
 	-- TODO: add support for booleans
