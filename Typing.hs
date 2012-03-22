@@ -89,25 +89,24 @@ instance TypeCheck FunDecl where
 	getType (FD ret name args vars stmts) = Function (map fst args) ret
 
 instance TypeCheck Exp where	
-	-- TODO: add support for booleans
+		
 	enforce (Int _) = yield Int_
 	enforce (Bool _) = yield Bool_
-	--enforce (ExpOp_ o a b) = if fst (enforce a) == fst (enforce b) && fst (enforce a) == Int__ then yield Int__ else error $ "Expected type int " ++ "," ++ " int but got " ++ show (fst $ enforce a) ++ "," ++ show (fst $ enforce b)
-	--enforce (Op1_ o a) = if (fst (enforce a == Int__) then yield Int__ else error $ "Expected int, but got " ++ show (fst $ enforce a)
+	enforce (ExpOp_ o a b) = \e-> if fst ((enforce a)e) == fst ((enforce b)e) && fst ((enforce a)e) == Int_ then (yield Int_) e else error $ "Expected type int " ++ "," ++ " int but got " ++ show (fst ((enforce a)e)) ++ "," ++ show (fst ((enforce b)e))
+	enforce (ExpOp_ o a b) = \e-> if fst ((enforce a)e) == fst ((enforce b)e) && fst ((enforce a)e) == Bool_ then (yield Int_) e else error $ "Expected type bool " ++ "," ++ " int but got " ++ show (fst ((enforce a)e)) ++ "," ++ show (fst ((enforce b)e))
+	enforce (Op1_ o a) = \e-> if fst ((enforce a)e) == Int_ then (yield Int_) e else error $ "Expected int, but got " ++ show (fst ((enforce a)e))
+	enforce (Op1_ o a) = \e-> if fst ((enforce a)e) == Bool_ then (yield Int_) e else error $ "Expected bool, but got " ++ show (fst ((enforce a)e))
 	enforce EmptyList = freshVar >-> (\x -> List_ x)
 	enforce (Tuple a b) = enforce a +=+ enforce b >-> (\(c, d) -> Tuple_ c d)
-	--enforce (Id_ v) = envGetType e v
-	--enforce (FunCall (f, _)) = getReturnType e f
+--	enforce (Generic_ v) = yield v
+--	enforce (FunCall (f, _)) = getReturnType f
 
 instance TypeCheck Stmt where	
-	--enforce e (Assign id1 exp) = if (enforce e exp) == (enforce e id1) then (enforce e id1)
-						--	  else error("Cannot unify types !" ++ show (enforce e exp) ++ show(enforce e id1)) so what should we do with id stuff?
-	--enforce (If exp stmt) = if (fst $ enforce exp e) == Bool_ then Undefined
-	--						  else error("Cannot unify expected type Bool_ with " ++ show(enforce exp e) ++"!");
-	--enforce (IfElse exp stmt1 stmt2) = if (fst $ enforce exp e) == Bool_ then Undefined
-	--						  else error("Cannot unify expected type Bool_ with " ++ show(enforce exp e) ++"!");
-	--enforce (While exp stmt) = if (fst $ enforce exp e) == Bool_ then Undefined
-	--						  else error("Cannot unify expected type Bool_ with " ++ show(enforce exp e) ++"!");
+	
+	--	enforce (Assign ids exp) = \e-> if fst ((enforce ids)e) == fst ((enforce exp)e) && fst ((enforce ids)e) == Int_ then (yield Int_) e else error $ "Expected type int " ++ "," ++ " int but got " ++ show (fst ((enforce ids)e)) ++ "," ++ show (fst ((enforce exp)e))
+	enforce (If exp stmt) =  \e-> if ((fst ((enforce exp)e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp)e) ++"!")
+	enforce (IfElse exp stmt1 stmt2) = \e->if ((fst ((enforce exp) e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp) e) ++"!")
+	enforce (While exp stmt) = \e->if ((fst ((enforce exp)e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp)e) ++"!")
 	enforce (Seq stmt) = yield Undefined
 	enforce (FunCall_ funCall) = yield Undefined
 	enforce (Return exp) = enforce exp -- TODO: check if it matches with the function specification
