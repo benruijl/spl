@@ -3,6 +3,7 @@ import Data.List
 
 -- Environment should keep track of the current Prog and all the function names,
 -- it should also keep track of the function the checker is currently in.
+
 type Env = (Int, [(Type, Type)],[(Type,Id)]) 
 type TypeChecker =  Env -> (Type, Env)
 
@@ -11,7 +12,12 @@ type TypeChecker =  Env -> (Type, Env)
 freshVar :: TypeChecker
 freshVar = \(i,m,n)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, n))
 
+lookUp :: [(Type,Id)] -> Id -> Maybe Type -- also type type
+lookUp [(x,y)] el = if y == el then Just x else Nothing
+lookUp l el = if snd (head l) == el then Just (fst (head l)) else lookUp (tail l) el
+					
 -- Add map to environment and check if it is compatible
+
 addMap :: Type -> Type -> TypeChecker
 addMap a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of -- this means if it is already in the environment
 	Just (_, c@(Generic_ _)) -> addMap b c e -- Add a map from b to c
@@ -21,6 +27,7 @@ addMap _ _ = yield Undefined
 
 -- check if the type a is in the right part
 -- useful, because such substitutions are not allowed
+
 isIncluded :: Type -> Type -> Bool
 isIncluded k (Tuple_ a b) = isIncluded k a || isIncluded k b
 isIncluded k (List_ a) = isIncluded k a
@@ -62,6 +69,7 @@ instance Substitute Decl where
 	substitute (a,b) (FunDecl f) =  FunDecl (substitute (a,b) f)
 
 -- BUG: first occurence is not replaced
+
 instance Substitute FunDecl where
 	substitute (a,b) (FD ret name args vars stmts) = FD (substitute (a,b) ret) name (newargs args) (map (substitute (a,b)) vars) stmts
 		where
@@ -95,13 +103,16 @@ fullSubstitute :: (Type,Type) -> Prog -> Prog
 fullSubstitute (a,b) c = map (substitute (a,b)) c
 
 class TypeCheck a where
+
 	-- what should this function return? If it only modifies the environment, it is maybe ok as well.
+	
 	enforce :: a -> Env -> (Type, Env)
 	getType :: a -> Type
 
 instance TypeCheck FunDecl where
+	
 	getType (FD ret name args vars stmts) = Function (map fst args) ret
-
+	
 instance TypeCheck Exp where	
 		
 	enforce (Int _) = yield Int_
@@ -112,19 +123,24 @@ instance TypeCheck Exp where
 	enforce (Op1_ o a) = \e-> if fst ((enforce a)e) == Bool_ then (yield Bool_) e else error $ "Expected bool, but got " ++ show (fst ((enforce a)e))
 	enforce EmptyList = freshVar >-> (\x -> List_ x)
 	enforce (Tuple a b) = enforce a +=+ enforce b >-> (\(c, d) -> Tuple_ c d)
---	enforce (Id name) = case getType name of Int  = yield Int_
---											Bool  = yield Bool_
+	enforce (Id name) = \(i,m,n) -> case lookUp n name of 
+											Just (Int_) -> yield Int_ (i,m,n)
+											Just (Bool_) -> yield Bool_ (i,m,n)
+											Nothing -> yield Undefined (i,m,n) -- provide it with a new type (addMap function) / add iD
 						
-
---	enforce (FunCall (f, _)) = 
+	enforce (FunCall (id, args)) = \(i,m,n) -> case lookUp n id of
+														Just(Int_) -> yield Int_ (i,m,n)
+														Just(Bool_) -> yield Bool_ (i,m,n)
+														Nothing->yield Undefined (i,m,n)
 
 instance TypeCheck Stmt where	
---	TO DO for lists and tuples
---	enforce (Assign ids exp) = \e-> if fst ((enforce (getType ids))e) == fst ((enforce exp)e) && fst ((enforce (getType ids))e) == Int_ then (yield Int_) e else error $ "Expected type int " ++ "," ++ " int but got " ++ show (fst ((enforce ids)e)) ++ "," ++ show (fst ((enforce exp)e))
---	enforce (Assign ids exp) = \e-> if fst ((enforce (getType ids))e) == fst ((enforce exp)e) && fst ((enforce (getType ids))e) == Int_ then (yield Bool_) e else error $ "Expected type bool " ++ "," ++ " int but got " ++ show (fst ((enforce ids)e)) ++ "," ++ show (fst ((enforce exp)e))
+--  TO DO how to treat compound types such as lists and tuples
+
+	enforce (Assign ids exp) = \e@(i,m,n) -> if fst ((enforce (Id ids))e) == fst ((enforce exp)e) then (yield (fst ((enforce exp)e))) e else error $ "Cannot unify types: " ++ show (fst ((enforce (Id ids))e)) ++ "," ++ show (fst ((enforce exp)e))
 	enforce (If exp stmt) =  \e-> if ((fst ((enforce exp)e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp)e) ++"!")
 	enforce (IfElse exp stmt1 stmt2) = \e->if ((fst ((enforce exp) e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp) e) ++"!")
 	enforce (While exp stmt) = \e->if ((fst ((enforce exp)e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp)e) ++"!")
 	enforce (Seq stmt) = yield Undefined
 	enforce (FunCall_ funCall) = yield Undefined
-	enforce (Return exp) = enforce exp -- TODO: check if it matches with the function specification
+	enforce (Return exp) = enforce exp -- TODO: check if it matches with the function specification (the majority are undefined except assign
+									   -- some way to pass the id of the current function that is executed as well as variables
