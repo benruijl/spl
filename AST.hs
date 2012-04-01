@@ -26,6 +26,7 @@ instance Show Type where
 	show (Tuple_ x y) = "(" ++ show x ++ "," ++ show y ++ ")"
 	show (List_ x) = "[" ++ show x ++ "]"
 	show (Function a r) = addsep "," (map show a) ++ " -> " ++ show r
+	show Undefined = "notype"
 
 instance Show Decl where
     show (VarDecl varDecl) = show varDecl

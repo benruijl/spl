@@ -23,7 +23,7 @@ addMap a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of -- this mea
 	Just (_, c@(Generic_ _)) -> addMap b c e -- Add a map from b to c
 	Just (_, c) -> if (c == b) then yield Undefined e else error $ "Cannot unify types: " ++ show b ++ "," ++ show c
 	Nothing -> yield Undefined (i, (a, b) : m, n)
-addMap _ _ = yield Undefined
+addMap a b = if a == b then yield Undefined else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
 
 -- check if the type a is in the right part
 -- useful, because such substitutions are not allowed
@@ -108,6 +108,9 @@ class TypeCheck a where
 	
 	enforce :: a -> Env -> (Type, Env)
 	getType :: a -> Type
+	
+instance TypeCheck VarDecl where
+	enforce (VD t name exp) = \e -> addMap t (fst $ enforce exp e) e -- new e should be passed to addMap
 
 instance TypeCheck FunDecl where
 	
