@@ -16,17 +16,31 @@ freshVar = \(i,m,n)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, n))
 addMap2 :: Type -> Type -> TypeChecker
 addMap2 a b = \e@(i, m, n) ->  case a of
 	Generic_ _ -> case b of 
-		Generic_ _ -> if a == b then yield a e else if isIncluded a b then addMap b a e else addMap a b e
-		c -> addMap a c e
+	--	Generic_ _ -> if a == b then yield a e else if isIncluded a b then addMap b a e else addMap a b e -- is this correct?
+		c -> if a /=b && isIncluded a b then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap a b e
 	d ->  case b of 
-		Generic_ _ -> addMap b d e
-		c -> if a == b then yield a e else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
+	--	Generic_ _ -> addMap b d e
+		c -> if a /=b && isIncluded a b then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap b a e
+
+addMap3 :: Type -> Type -> Env -> Env
+addMap3 (List_ a) (List_ b) = addMap3 a b
+addMap3 (Tuple_ a b) (Tuple_ d e) = addMap3 a b . addMap3 d e
+--TODO: also do the other way around?
+addMap3 (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap4 (Generic_ a) b
+addMap3 a (Generic_ b) = if isIncluded a (Generic_ b) then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap4 (Generic_ b) a 
+addMap3 a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
+
+-- Add map to environment and check if it is compatible
+addMap4 :: Type -> Type -> Env -> Env
+addMap4 a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of
+	Just (_, c) ->  addMap3 b c e -- Add a map from b to c
+	Nothing -> (i, (a, b) : m, n)
+addMap4 a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
 
 -- Add map to environment and check if it is compatible
 addMap :: Type -> Type -> TypeChecker
 addMap a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of -- this means if it is already in the environment
-	Just (_, c@(Generic_ _)) -> addMap b c e -- Add a map from b to c
-	Just (_, c) -> if (c == b) then yield c e else error $ "Cannot unify types: " ++ show b ++ "," ++ show c
+	Just (_, c) ->  addMap2 b c e -- Add a map from b to c
 	Nothing -> yield b (i, (a, b) : m, n)
 addMap a b = if a == b then yield a else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
 
