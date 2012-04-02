@@ -21,7 +21,7 @@ isIncluded a b = a == b
 unify :: Type -> Type -> Env -> Env
 unify (List_ a) (List_ b) = unify a b
 unify (Tuple_ a b) (Tuple_ d e) = unify a d . unify b e
-unify (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ a ++ "," ++ show b else addMap (Generic_ a) b
+unify (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ a ++ " and " ++ show b else addMap (Generic_ a) b
 unify a (Generic_ b) = unify (Generic_ b) a
 unify a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
@@ -121,44 +121,39 @@ fullSubstitute :: (Type,Type) -> Prog -> Prog
 fullSubstitute (a,b) c = map (substitute (a,b)) c
 
 class TypeCheck a where
-
-	-- what should this function return? If it only modifies the environment, it is maybe ok as well.
-	
-	enforce :: a -> Env -> (Type, Env)
-	enforce2 :: a -> Env -> Env
+	enforce :: a -> Env -> Env
 	getType :: a -> Env -> Type
 	
 instance TypeCheck VarDecl where
-	enforce2 (VD t name exp) = \e -> (set name t . unify t (getType exp e)) e
+	enforce (VD t name exp) = \e -> (set name t . unify t (getType exp e)) e
 
 instance TypeCheck FunDecl where
-	
 	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
 	
 instance TypeCheck Exp where
 	getType (Int _) = const Int_
 	getType (Bool _) = const Bool_
 	getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
-		
-	enforce (Int _) = yield Int_
-	enforce (Bool _) = yield Bool_
-	enforce (ExpOp_ o a b) = \e-> if fst ((enforce a)e) == fst ((enforce b)e) && fst ((enforce a)e) == Int_ then (yield Int_) e else error $ "Expected type int " ++ "," ++ " int but got " ++ show (fst ((enforce a)e)) ++ "," ++ show (fst ((enforce b)e))
-	enforce (Op1_ o a) = \e-> if fst ((enforce a)e) == Int_ then (yield Int_) e else error $ "Expected int, but got " ++ show (fst ((enforce a)e))
-	enforce EmptyList = freshVar >-> (\x -> List_ x)
-	enforce (Tuple a b) = enforce a +=+ enforce b >-> (\(c, d) -> Tuple_ c d)
-	enforce (Id name) = get name		
---	enforce (FunCall (name, args)) = \e@(i,m,n) -> case find (\(i,t) -> i == name) n of
-											-- TODO: check if number of arguments is the same
-											-- FIXME: too complicated, need for more combinators
-			--								Just (i, Function v r) -> (\(x,y) -> (r, y)) $ (\s -> iter (\(a,b) -> addMap2 a b) (zip (fst s) v) (snd s)) $ iter enforce args e
---											_ -> error $ "Undefined function '" ++ name ++ "'"
+	getType (Id name) = fst . get name
+
+	enforce (Int _) = id
+	enforce (Bool _) = id
+	enforce EmptyList = id
+	-- TODO: make cases for ints and bools. depends on the operator
+	enforce (ExpOp_ o a b) = \e -> (unify (getType a e) (getType b e) . enforce a . enforce b) e
+	enforce (Op1_ o a) = \e -> unify (getType a e) Int_ e
+	enforce (Tuple a b) = enforce a . enforce b
+	enforce (Id name) = snd . get name 
+	-- TODO: check if number of arguments is the same
+	enforce (FunCall (name, args)) = \e -> case fst (get name e) of
+		Function v r -> foldl (\x (a,b)-> unify a b x) e (zip v (map (\x -> getType x e) args))
 
 instance TypeCheck Stmt where	
-	enforce2 (If cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce2 stmt
-	enforce2 (IfElse cond stmt1 stmt2) = (\e -> unify (getType cond e) Bool_ e) . enforce2 stmt1 . enforce2 stmt2
-	enforce2 (Assign id exp) = \e -> unify (fst (get id e)) (getType exp e) e
-	enforce2 (While cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce2 stmt
-	enforce2 (Seq stmt) = \e -> foldl (\x y -> enforce2 y x) e stmt
---	enforce2 (FunCall_ funCall) =
-	enforce2 (Return exp) = enforce2 exp -- TODO: check if it matches with the function specification (the majority are undefined except assign
+	enforce (If cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt
+	enforce (IfElse cond stmt1 stmt2) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt1 . enforce stmt2
+	enforce (Assign id exp) = \e -> unify (fst (get id e)) (getType exp e) e
+	enforce (While cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt
+	enforce (Seq stmt) = \e -> foldl (\x y -> enforce y x) e stmt
+--	enforce (FunCall_ funCall) =
+	enforce (Return exp) = enforce exp -- TODO: check if it matches with the function specification (the majority are undefined except assign
 									   -- some way to pass the id of the current function that is executed as well as variables
