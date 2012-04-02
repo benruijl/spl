@@ -12,45 +12,36 @@ type TypeChecker =  Env -> (Type, Env)
 freshVar :: TypeChecker
 freshVar = \(i,m,n)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, n))
 
--- FIXME: Only allowed to be called with Generic_ and concrete types, so no List (Generic "a")
-addMap2 :: Type -> Type -> TypeChecker
-addMap2 a b = \e@(i, m, n) ->  case a of
-	Generic_ _ -> case b of 
-	--	Generic_ _ -> if a == b then yield a e else if isIncluded a b then addMap b a e else addMap a b e -- is this correct?
-		c -> if a /=b && isIncluded a b then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap a b e
-	d ->  case b of 
-	--	Generic_ _ -> addMap b d e
-		c -> if a /=b && isIncluded a b then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap b a e
-
-addMap3 :: Type -> Type -> Env -> Env
-addMap3 (List_ a) (List_ b) = addMap3 a b
-addMap3 (Tuple_ a b) (Tuple_ d e) = addMap3 a b . addMap3 d e
---TODO: also do the other way around?
-addMap3 (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap4 (Generic_ a) b
-addMap3 a (Generic_ b) = if isIncluded a (Generic_ b) then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap4 (Generic_ b) a 
-addMap3 a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
-
--- Add map to environment and check if it is compatible
-addMap4 :: Type -> Type -> Env -> Env
-addMap4 a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of
-	Just (_, c) ->  addMap3 b c e -- Add a map from b to c
-	Nothing -> (i, (a, b) : m, n)
-addMap4 a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
-
--- Add map to environment and check if it is compatible
-addMap :: Type -> Type -> TypeChecker
-addMap a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of -- this means if it is already in the environment
-	Just (_, c) ->  addMap2 b c e -- Add a map from b to c
-	Nothing -> yield b (i, (a, b) : m, n)
-addMap a b = if a == b then yield a else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
-
--- check if the type a is in the right part
--- useful, because such substitutions are not allowed
-
+-- check if the type a is included in type b
 isIncluded :: Type -> Type -> Bool
 isIncluded k (Tuple_ a b) = isIncluded k a || isIncluded k b
 isIncluded k (List_ a) = isIncluded k a
 isIncluded a b = a == b
+
+unify :: Type -> Type -> Env -> Env
+unify (List_ a) (List_ b) = unify a b
+unify (Tuple_ a b) (Tuple_ d e) = unify a b . unify d e
+unify (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap (Generic_ a) b
+unify a (Generic_ b) = unify (Generic_ b) a
+unify a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
+
+-- Gets the type of a variable or function
+get :: Id -> Env -> (Type, Env)
+get id = \e@(i,m,n) -> case find (\(i,t) -> i == id) n of 
+	Just (i, t) -> (t, e)
+	Nothing -> error $ "Undefined variable or function '" ++ id ++ "'"
+
+-- Add variable or function to the symbol table
+set :: Id -> Type -> Env -> Env
+set id t = \e@(i,m,n) -> (i, m, (id, t) : n)
+
+-- Adds a map from a generic to another type
+addMap :: Type -> Type -> Env -> Env
+addMap a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of
+	Just (_, c) ->  unify b c e -- Add a map from b to c
+	Nothing -> (i, (a, b) : m, n)
+addMap a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
+
 
 infixl 5 >->
 (>->) :: (Env -> (a, Env)) -> (a -> b) -> (Env -> (b, Env))
@@ -134,40 +125,42 @@ class TypeCheck a where
 	-- what should this function return? If it only modifies the environment, it is maybe ok as well.
 	
 	enforce :: a -> Env -> (Type, Env)
-	getType :: a -> Type
+	enforce2 :: a -> Env -> Env
+	getType :: a -> Env -> Type
 	
 instance TypeCheck VarDecl where
-	enforce (VD t name exp) = \e -> addMap2 t (fst $ enforce exp e) e -- FIXME: new e should be passed to addMap
+	enforce2 (VD t name exp) = \e -> (set name t . unify t (getType exp e)) e
 
 instance TypeCheck FunDecl where
 	
-	getType (FD ret name args vars stmts) = Function (map fst args) ret
+	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
 	
-instance TypeCheck Exp where	
+instance TypeCheck Exp where
+	getType (Int _) = const Int_
+	getType (Bool _) = const Bool_
+	getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
 		
 	enforce (Int _) = yield Int_
 	enforce (Bool _) = yield Bool_
 	enforce (ExpOp_ o a b) = \e-> if fst ((enforce a)e) == fst ((enforce b)e) && fst ((enforce a)e) == Int_ then (yield Int_) e else error $ "Expected type int " ++ "," ++ " int but got " ++ show (fst ((enforce a)e)) ++ "," ++ show (fst ((enforce b)e))
-	enforce (ExpOp_ o a b) = \e-> if fst ((enforce a)e) == fst ((enforce b)e) && fst ((enforce a)e) == Bool_ then (yield Bool_) e else error $ "Expected type bool " ++ "," ++ " int but got " ++ show (fst ((enforce a)e)) ++ "," ++ show (fst ((enforce b)e))
 	enforce (Op1_ o a) = \e-> if fst ((enforce a)e) == Int_ then (yield Int_) e else error $ "Expected int, but got " ++ show (fst ((enforce a)e))
-	enforce (Op1_ o a) = \e-> if fst ((enforce a)e) == Bool_ then (yield Bool_) e else error $ "Expected bool, but got " ++ show (fst ((enforce a)e))
 	enforce EmptyList = freshVar >-> (\x -> List_ x)
 	enforce (Tuple a b) = enforce a +=+ enforce b >-> (\(c, d) -> Tuple_ c d)
-	enforce (Id name) = \e@(i,m,n) -> case find (\(i,t) -> i == name) n of 
-											Just (i, t) -> yield t e
-											Nothing -> error $ "Undefined variable '" ++ name ++ "'"		
+	enforce (Id name) = get name		
 	enforce (FunCall (name, args)) = \e@(i,m,n) -> case find (\(i,t) -> i == name) n of
 											-- TODO: check if number of arguments is the same
 											-- FIXME: too complicated, need for more combinators
-											Just (i, Function v r) -> (\(x,y) -> (r, y)) $ (\s -> iter (\(a,b) -> addMap2 a b) (zip (fst s) v) (snd s)) $ iter enforce args e
+			--								Just (i, Function v r) -> (\(x,y) -> (r, y)) $ (\s -> iter (\(a,b) -> addMap2 a b) (zip (fst s) v) (snd s)) $ iter enforce args e
 											_ -> error $ "Undefined function '" ++ name ++ "'"
 
 instance TypeCheck Stmt where	
+	enforce2 (If cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce2 stmt
+	enforce2 (IfElse cond stmt1 stmt2) = (\e -> unify (getType cond e) Bool_ e) . enforce2 stmt1 . enforce2 stmt2
+	enforce2 (Assign id exp) = \e -> unify (fst (get id e)) (getType exp e) e
+
 --  TO DO how to treat compound types such as lists and tuples
 
 	enforce (Assign ids exp) = \e@(i,m,n) -> if fst ((enforce (Id ids))e) == fst ((enforce exp)e) then (yield (fst ((enforce exp)e))) e else error $ "Cannot unify types: " ++ show (fst ((enforce (Id ids))e)) ++ "," ++ show (fst ((enforce exp)e))
-	enforce (If exp stmt) =  \e-> if ((fst ((enforce exp)e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp)e) ++"!")
-	enforce (IfElse exp stmt1 stmt2) = \e->if ((fst ((enforce exp) e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp) e) ++"!")
 	enforce (While exp stmt) = \e->if ((fst ((enforce exp)e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp)e) ++"!")
 	enforce (Seq stmt) = yield Undefined
 	enforce (FunCall_ funCall) = yield Undefined
