@@ -12,14 +12,23 @@ type TypeChecker =  Env -> (Type, Env)
 freshVar :: TypeChecker
 freshVar = \(i,m,n)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, n))
 
+-- FIXME: Only allowed to be called with Generic_ and concrete types, so no List (Generic "a")
+addMap2 :: Type -> Type -> TypeChecker
+addMap2 a b = \e@(i, m, n) ->  case a of
+	Generic_ _ -> case b of 
+		Generic_ _ -> if a == b then yield a e else if isIncluded a b then addMap b a e else addMap a b e
+		c -> addMap a c e
+	d ->  case b of 
+		Generic_ _ -> addMap b d e
+		c -> if a == b then yield a e else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
+
 -- Add map to environment and check if it is compatible
--- TODO: also check second element, and check isIncluded
 addMap :: Type -> Type -> TypeChecker
 addMap a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of -- this means if it is already in the environment
 	Just (_, c@(Generic_ _)) -> addMap b c e -- Add a map from b to c
 	Just (_, c) -> if (c == b) then yield c e else error $ "Cannot unify types: " ++ show b ++ "," ++ show c
 	Nothing -> yield b (i, (a, b) : m, n)
-addMap a b = if a == b then yield Undefined else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
+addMap a b = if a == b then yield a else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
 
 -- check if the type a is in the right part
 -- useful, because such substitutions are not allowed
@@ -114,7 +123,7 @@ class TypeCheck a where
 	getType :: a -> Type
 	
 instance TypeCheck VarDecl where
-	enforce (VD t name exp) = \e -> addMap t (fst $ enforce exp e) e -- new e should be passed to addMap
+	enforce (VD t name exp) = \e -> addMap2 t (fst $ enforce exp e) e -- FIXME: new e should be passed to addMap
 
 instance TypeCheck FunDecl where
 	
@@ -136,7 +145,7 @@ instance TypeCheck Exp where
 	enforce (FunCall (name, args)) = \e@(i,m,n) -> case find (\(i,t) -> i == name) n of
 											-- TODO: check if number of arguments is the same
 											-- FIXME: too complicated, need for more combinators
-											Just (i, Function v r) -> (\(x,y) -> (r, y)) $ (\s -> iter (\(a,b) -> addMap a b) (zip (fst s) v) (snd s)) $ iter enforce args e
+											Just (i, Function v r) -> (\(x,y) -> (r, y)) $ (\s -> iter (\(a,b) -> addMap2 a b) (zip (fst s) v) (snd s)) $ iter enforce args e
 											_ -> error $ "Undefined function '" ++ name ++ "'"
 
 instance TypeCheck Stmt where	
