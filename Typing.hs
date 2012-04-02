@@ -3,8 +3,8 @@ import Data.List
 
 -- Environment should keep track of the current Prog and all the function names,
 -- it should also keep track of the function the checker is currently in.
-
-type Env = (Int, [(Type, Type)],[(Type,Id)]) 
+-- Env = (fresh var count, typemap, symbol table)
+type Env = (Int, [(Type, Type)],[(Id, Type)]) 
 type TypeChecker =  Env -> (Type, Env)
 
 -- Generate a new type
@@ -12,17 +12,13 @@ type TypeChecker =  Env -> (Type, Env)
 freshVar :: TypeChecker
 freshVar = \(i,m,n)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, n))
 
-lookUp :: [(Type,Id)] -> Id -> Maybe Type -- also type type
-lookUp [(x,y)] el = if y == el then Just x else Nothing
-lookUp l el = if snd (head l) == el then Just (fst (head l)) else lookUp (tail l) el
-					
 -- Add map to environment and check if it is compatible
-
+-- TODO: also check second element, and check isIncluded
 addMap :: Type -> Type -> TypeChecker
 addMap a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of -- this means if it is already in the environment
 	Just (_, c@(Generic_ _)) -> addMap b c e -- Add a map from b to c
-	Just (_, c) -> if (c == b) then yield Undefined e else error $ "Cannot unify types: " ++ show b ++ "," ++ show c
-	Nothing -> yield Undefined (i, (a, b) : m, n)
+	Just (_, c) -> if (c == b) then yield c e else error $ "Cannot unify types: " ++ show b ++ "," ++ show c
+	Nothing -> yield b (i, (a, b) : m, n)
 addMap a b = if a == b then yield Undefined else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
 
 -- check if the type a is in the right part
@@ -53,6 +49,14 @@ infixl 6 +=+
 -- infixl 1 >>|
 -- (>>|) :: TypeChecker -> TypeChecker -> TypeChecker 
 -- x >>| y = x >>- \_-> y
+
+iter :: (a -> TypeChecker) -> [a] -> Env -> ([Type], Env)
+iter f [] e = ([], e)
+iter f l e = ([fst h] ++ fst t, snd t)
+	where
+		h = f (head l) e 
+		t = iter f (tail l) (snd h)
+
 			
 yield :: Type -> TypeChecker
 yield x = \e -> (x,e)
@@ -126,15 +130,14 @@ instance TypeCheck Exp where
 	enforce (Op1_ o a) = \e-> if fst ((enforce a)e) == Bool_ then (yield Bool_) e else error $ "Expected bool, but got " ++ show (fst ((enforce a)e))
 	enforce EmptyList = freshVar >-> (\x -> List_ x)
 	enforce (Tuple a b) = enforce a +=+ enforce b >-> (\(c, d) -> Tuple_ c d)
-	enforce (Id name) = \(i,m,n) -> case lookUp n name of 
-											Just (Int_) -> yield Int_ (i,m,n)
-											Just (Bool_) -> yield Bool_ (i,m,n)
-											Nothing -> yield Undefined (i,m,n) -- provide it with a new type (addMap function) / add iD
-						
-	enforce (FunCall (id, args)) = \(i,m,n) -> case lookUp n id of
-														Just(Int_) -> yield Int_ (i,m,n)
-														Just(Bool_) -> yield Bool_ (i,m,n)
-														Nothing->yield Undefined (i,m,n)
+	enforce (Id name) = \e@(i,m,n) -> case find (\(i,t) -> i == name) n of 
+											Just (i, t) -> yield t e
+											Nothing -> error $ "Undefined variable '" ++ name ++ "'"		
+	enforce (FunCall (name, args)) = \e@(i,m,n) -> case find (\(i,t) -> i == name) n of
+											-- TODO: check if number of arguments is the same
+											-- FIXME: too complicated, need for more combinators
+											Just (i, Function v r) -> (\(x,y) -> (r, y)) $ (\s -> iter (\(a,b) -> addMap a b) (zip (fst s) v) (snd s)) $ iter enforce args e
+											_ -> error $ "Undefined function '" ++ name ++ "'"
 
 instance TypeCheck Stmt where	
 --  TO DO how to treat compound types such as lists and tuples
