@@ -20,10 +20,10 @@ isIncluded a b = a == b
 
 unify :: Type -> Type -> Env -> Env
 unify (List_ a) (List_ b) = unify a b
-unify (Tuple_ a b) (Tuple_ d e) = unify a b . unify d e
-unify (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ show a ++ "," ++ show b else addMap (Generic_ a) b
+unify (Tuple_ a b) (Tuple_ d e) = unify a d . unify b e
+unify (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ a ++ "," ++ show b else addMap (Generic_ a) b
 unify a (Generic_ b) = unify (Generic_ b) a
-unify a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
+unify a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
 -- Gets the type of a variable or function
 get :: Id -> Env -> (Type, Env)
@@ -40,7 +40,7 @@ addMap :: Type -> Type -> Env -> Env
 addMap a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of
 	Just (_, c) ->  unify b c e -- Add a map from b to c
 	Nothing -> (i, (a, b) : m, n)
-addMap a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ "," ++ show b
+addMap a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
 
 infixl 5 >->
@@ -147,22 +147,18 @@ instance TypeCheck Exp where
 	enforce EmptyList = freshVar >-> (\x -> List_ x)
 	enforce (Tuple a b) = enforce a +=+ enforce b >-> (\(c, d) -> Tuple_ c d)
 	enforce (Id name) = get name		
-	enforce (FunCall (name, args)) = \e@(i,m,n) -> case find (\(i,t) -> i == name) n of
+--	enforce (FunCall (name, args)) = \e@(i,m,n) -> case find (\(i,t) -> i == name) n of
 											-- TODO: check if number of arguments is the same
 											-- FIXME: too complicated, need for more combinators
 			--								Just (i, Function v r) -> (\(x,y) -> (r, y)) $ (\s -> iter (\(a,b) -> addMap2 a b) (zip (fst s) v) (snd s)) $ iter enforce args e
-											_ -> error $ "Undefined function '" ++ name ++ "'"
+--											_ -> error $ "Undefined function '" ++ name ++ "'"
 
 instance TypeCheck Stmt where	
 	enforce2 (If cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce2 stmt
 	enforce2 (IfElse cond stmt1 stmt2) = (\e -> unify (getType cond e) Bool_ e) . enforce2 stmt1 . enforce2 stmt2
 	enforce2 (Assign id exp) = \e -> unify (fst (get id e)) (getType exp e) e
-
---  TO DO how to treat compound types such as lists and tuples
-
-	enforce (Assign ids exp) = \e@(i,m,n) -> if fst ((enforce (Id ids))e) == fst ((enforce exp)e) then (yield (fst ((enforce exp)e))) e else error $ "Cannot unify types: " ++ show (fst ((enforce (Id ids))e)) ++ "," ++ show (fst ((enforce exp)e))
-	enforce (While exp stmt) = \e->if ((fst ((enforce exp)e)) == Bool_) then (yield Undefined)e else error("Cannot unify expected type Bool_ with " ++ show((enforce exp)e) ++"!")
-	enforce (Seq stmt) = yield Undefined
-	enforce (FunCall_ funCall) = yield Undefined
-	enforce (Return exp) = enforce exp -- TODO: check if it matches with the function specification (the majority are undefined except assign
+	enforce2 (While cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce2 stmt
+	enforce2 (Seq stmt) = \e -> foldl (\x y -> enforce2 y x) e stmt
+--	enforce2 (FunCall_ funCall) =
+	enforce2 (Return exp) = enforce2 exp -- TODO: check if it matches with the function specification (the majority are undefined except assign
 									   -- some way to pass the id of the current function that is executed as well as variables
