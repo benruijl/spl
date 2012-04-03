@@ -66,8 +66,8 @@ actArgsParse :: Parser ActArgs
 actArgsParse = (expParse >-> (\x -> [x])) /?\ (\x -> (match ",") >>| actArgsParse >-> (\y -> x ++ y))
 
 -- allow for void types
-retTypeParse :: Parser RetType
-retTypeParse = (match "void") >-> (\x -> Void) ! typeParse >-> (\x -> Type x)
+retTypeParse :: Parser Type
+retTypeParse = (match "void") >-> (\x -> Void) ! typeParse
 
 -- note: each variable has to be initialised!
 varDeclParse :: Parser VarDecl
@@ -109,14 +109,14 @@ stmtParse = (funCallParse  >>- (match ";") >-> (\x -> FunCall_ x)) ! curlyParse 
 curlyParse = match "{" >>| iter stmtParse >>- match "}" >-> (\x -> Seq x)
 
 ifElseParse :: Parser Stmt
-ifElseParse = (((match "if")) >>| (match "(") >>| expParse  >>- (match ")") # stmtParse >-> (\(e,s) -> (If e s))) /?\ (\(If e s) -> (match "else") >>| stmtParse >-> (\c -> (IfElse e s c)))
+ifElseParse = ((match "if") >>| (match "(") >>| expParse  >>- (match ")") # stmtParse >-> (\(e,s) -> (If e s))) /?\ (\(If e s) -> (match "else") >>| stmtParse >-> (\c -> (IfElse e s c)))
 
 assignParse :: Parser Stmt
 assignParse = idScan >>- (match "=") # expParse >>- parseEnd >-> (\(x,y) -> Assign x y)
 
-whileParse = ((match "while")) >>| (match "(") >>| expParse  >>- (match ")") # stmtParse >-> (\(x,y) -> While x y)
+whileParse = (match "while") >>| (match "(") >>| expParse  >>- (match ")") # stmtParse >-> (\(x,y) -> While x y)
 
-returnParse =  ((match "return")) >>| expParse >>- parseEnd >-> (\x -> Return x)
+returnParse =  (match "return") >>| ((expParse >>- parseEnd >-> (\x -> Return (Just x))) ! (parseEnd >-> (\x -> Return Nothing)))
 
 typeParse = (match "int") >-> (\_ -> Int_) ! (match "bool") >-> (\_ -> Bool_) ! parseTuple ! parseList ! idScan >-> (\x -> Generic_ x)
     where

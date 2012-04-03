@@ -13,7 +13,7 @@ type FunCall = (Id, ActArgs)
 
 data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1_ Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp
 data Type = Generic_ Id | Int_ | Bool_ | Tuple_ Type Type | List_ Type | Undefined | Void | Function [Type] Type deriving Eq
-data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return Exp
+data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return (Maybe Exp)
 data Op1 = Negate | UnitaryMinus
 data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mul | Div deriving Eq
 
@@ -48,7 +48,8 @@ instance Show Stmt where
     show (While exp stmt) = "while(" ++ show exp ++ ")\n{\n" ++ indentML (show stmt) ++ "}"
     show (Assign ident exp) = ident ++ " = " ++ show exp ++ ";"
     show (FunCall_ (id, args)) = id ++ "(" ++ addsep ", " (map show args) ++ ");"
-    show (Return exp) = "return " ++ show exp ++ ";"
+    show (Return (Just exp)) = "return " ++ show exp ++ ";"
+    show (Return Nothing) = "return;"
 
 -- shows ExpOp_ and filters parentheses
 showOp2 (ExpOp_ o e1 e2)

@@ -34,4 +34,5 @@ void fB()
 	
 	fA();
 	fB();
+        return;
 }

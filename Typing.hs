@@ -159,6 +159,8 @@ instance TypeCheck Stmt where
 	enforce (While cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt
 	enforce (Seq stmt) = \e -> foldl (\x y -> enforce y x) e stmt
 	enforce (FunCall_ funCall) = enforce (FunCall funCall) -- call the Exp enforcer
-	enforce (Return exp) = (\e -> unify (getType exp e) (getRet e) e)  . (enforce exp)
+	enforce (Return a) = case a of 
+		Just exp -> (\e -> unify (getType exp e) (getRet e) e)  . (enforce exp)
+		Nothing -> \e -> unify Void (getRet e) e
 		where getRet = \e -> case getf e of 
 				(Function a r, _) -> r
