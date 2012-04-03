@@ -41,6 +41,10 @@ get id = \e@(i,m,n,f) -> case find (\(i,t) -> i == id) n of
 set :: Id -> Type -> Env -> Env
 set id t = \e@(i,m,n,f) -> (i, m, (id, t) : n, f)
 
+-- Sets the current function
+setf :: Id -> Env -> Env
+setf id = \e@(i,m,n,f) -> (i, m, n, id)
+
 -- Adds a map from a generic to another type
 addMap :: Type -> Type -> Env -> Env
 addMap a@(Generic_ _) b = \e@(i, m, n, f) -> case find ((==a).fst) m of
@@ -54,6 +58,18 @@ buildEnv p = foldl (\x y -> case y of
 		 (VarDecl (VD _ name _)) -> set name (getType y x) x
 		 (FunDecl (FD _ name _ _ _)) -> set name (getType y x) x) 
 		(0, [], [], "") p
+
+-- Adds the default functions
+defaultFunctions :: Env -> Env
+defaultFunctions = \e@(i,m,n,f) -> (i,m,n ++ [hd, tl, isEmpty, fst, snd, print],f)
+	where
+	hd = ("head", Function [List_ (Generic_ "_r1")] (Generic_ "_r1"))
+	tl = ("tail", Function [List_ (Generic_ "_r2")] (List_ (Generic_ "_r2")))
+	isEmpty = ("isEmpty", Function [List_ (Generic_ "_r3")] Bool_)
+	fst = ("fst", Function [Tuple_ (Generic_ "_r4") (Generic_ "_r5")] (Generic_ "_r4"))
+	snd = ("snd", Function [Tuple_ (Generic_ "_r6") (Generic_ "_r7")] (Generic_ "_r7"))
+	print = ("print", Function [Generic_ "_r8"] Void)
+	
 
 -- TODO: keep track of global and local environment
 -- TODO: set the function that is about to get enforced
@@ -161,7 +177,8 @@ instance TypeCheck VarDecl where
 instance TypeCheck FunDecl where
 	-- TODO: all functions and all global variables are added to the environment twice now
 	-- FIXME: all args are added to the global state
-	enforce (FD ret name args vars stmts) = \e -> ((enforce stmts) . (listEnforce vars) . (listDo (\(t,n) -> set n t) args) . (set name (Function (map fst args) ret))) e
+	-- TODO: now the current function is written here, do somewhere else?
+	enforce (FD ret name args vars stmts) = \e -> ((enforce stmts) . (listEnforce vars) . (listDo (\(t,n) -> set n t) args) . (set name (Function (map fst args) ret)) . (setf name)) e
 	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
 	
 instance TypeCheck Exp where
@@ -170,7 +187,9 @@ instance TypeCheck Exp where
 	getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
 	getType (Id name) = fst . get name
 	getType EmptyList = const (List_ (Generic_ "_list")) -- FIXME: what to do here?
-	getType (ExpOp_ o a b) = const Int_ -- FIXME: sometimes it's bool
+	-- FIXME: find all cases
+	getType (ExpOp_ AppCons a b) = getType b
+	getType (ExpOp_ o a b) = if elem o [Equals, LessEq, MoreEq, NotEq, Less, More] then const Bool_ else const Int_
 	getType (Op1_ o a) = const Int_ -- FIXME: sometimes it's bool
 	getType (FunCall (name, args)) = \e -> case fst (get name e) of -- FIXME: correct, different scope?
 		Function v r -> r
@@ -179,7 +198,9 @@ instance TypeCheck Exp where
 	enforce (Bool _) = id
 	enforce EmptyList = id
 	-- TODO: make cases for ints and bools. depends on the operator
+	enforce (ExpOp_ AppCons a b) = \e -> (unify (List_ (getType a e)) (getType b e) . enforce a . enforce b) e
 	enforce (ExpOp_ o a b) = \e -> (unify (getType a e) (getType b e) . enforce a . enforce b) e
+
 	enforce (Op1_ o a) = \e -> unify (getType a e) Int_ e
 	enforce (Tuple a b) = enforce a . enforce b
 	enforce (Id name) = snd . get name 
