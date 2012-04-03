@@ -3,14 +3,14 @@ import Data.List
 
 -- Environment should keep track of the current Prog and all the function names,
 -- it should also keep track of the function the checker is currently in.
--- Env = (fresh var count, typemap, symbol table)
-type Env = (Int, [(Type, Type)],[(Id, Type)]) 
+-- Env = (fresh var count, typemap, symbol table, current function id)
+type Env = (Int, [(Type, Type)],[(Id, Type)], Id) 
 type TypeChecker =  Env -> (Type, Env)
 
 -- Generate a new type
 
 freshVar :: TypeChecker
-freshVar = \(i,m,n)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, n))
+freshVar = \(i,m,n,f)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, n,f))
 
 -- check if the type a is included in type b
 isIncluded :: Type -> Type -> Bool
@@ -25,21 +25,25 @@ unify (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify t
 unify a (Generic_ b) = unify (Generic_ b) a
 unify a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
+-- Gets the function type the checker is currently in
+getf :: Env -> (Type, Env)
+getf = \e@(i,m,n,f) -> get f e
+
 -- Gets the type of a variable or function
 get :: Id -> Env -> (Type, Env)
-get id = \e@(i,m,n) -> case find (\(i,t) -> i == id) n of 
+get id = \e@(i,m,n,f) -> case find (\(i,t) -> i == id) n of 
 	Just (i, t) -> (t, e)
 	Nothing -> error $ "Undefined variable or function '" ++ id ++ "'"
 
 -- Add variable or function to the symbol table
 set :: Id -> Type -> Env -> Env
-set id t = \e@(i,m,n) -> (i, m, (id, t) : n)
+set id t = \e@(i,m,n,f) -> (i, m, (id, t) : n, f)
 
 -- Adds a map from a generic to another type
 addMap :: Type -> Type -> Env -> Env
-addMap a@(Generic_ _) b = \e@(i, m, n) -> case find ((==a).fst) m of
+addMap a@(Generic_ _) b = \e@(i, m, n, f) -> case find ((==a).fst) m of
 	Just (_, c) ->  unify b c e -- Add a map from b to c
-	Nothing -> (i, (a, b) : m, n)
+	Nothing -> (i, (a, b) : m, n, f)
 addMap a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
 
@@ -93,7 +97,7 @@ instance Substitute FunDecl where
 		where
 		newargs = map (\(x,i) -> if (x == a) then (b,i) else (x, i))
 	typeScraper (FD ret name args vars stmts) = typeScraper ret ++ (concatMap (typeScraper . fst) args) ++ (concatMap typeScraper vars)
-	uniqueName f = \(i,m,n) -> (Undefined,(length vars + i,(zip vars [Generic_ ("_a" ++ show (x + 1)) | x <- [i..]]) ++ m, n))
+	uniqueName f = \(i,m,n,f) -> (Undefined,(length vars + i,(zip vars [Generic_ ("_a" ++ show (x + 1)) | x <- [i..]]) ++ m, n,f))
 		where
 		vars = nub $ typeScraper f
 
@@ -105,7 +109,7 @@ instance Substitute FunDecl where
 instance Substitute VarDecl where
 	substitute (a,b) (VD t name e) = VD (substitute (a,b) t) name e
 	typeScraper (VD t name e) = typeScraper t
-	uniqueName f  = \(i,m,n) -> (Undefined,(i + 1,(zip (typeScraper f) [(Generic_ ("_a" ++ show (i + 1)))]) ++ m, n))
+	uniqueName f  = \(i,m,n,a) -> (Undefined,(i + 1,(zip (typeScraper f) [(Generic_ ("_a" ++ show (i + 1)))]) ++ m, n,a))
 	
 --  substInEnv v = \(i,m,n) -> \k@(VD t name e)->(Undefined,(i,m,[(t,name)])) (makeUnique v m)
 	
@@ -154,6 +158,7 @@ instance TypeCheck Stmt where
 	enforce (Assign id exp) = \e -> unify (fst (get id e)) (getType exp e) e
 	enforce (While cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt
 	enforce (Seq stmt) = \e -> foldl (\x y -> enforce y x) e stmt
---	enforce (FunCall_ funCall) =
-	enforce (Return exp) = enforce exp -- TODO: check if it matches with the function specification (the majority are undefined except assign
-									   -- some way to pass the id of the current function that is executed as well as variables
+	enforce (FunCall_ funCall) = enforce (FunCall funCall) -- call the Exp enforcer
+	enforce (Return exp) = (\e -> unify (getType exp e) (getRet e) e)  . (enforce exp)
+		where getRet = \e -> case getf e of 
+				(Function a r, _) -> r
