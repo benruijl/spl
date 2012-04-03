@@ -1,3 +1,5 @@
+module Typing where
+
 import AST
 import Data.List
 
@@ -45,6 +47,13 @@ addMap a@(Generic_ _) b = \e@(i, m, n, f) -> case find ((==a).fst) m of
 	Just (_, c) ->  unify b c e -- Add a map from b to c
 	Nothing -> (i, (a, b) : m, n, f)
 addMap a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
+
+-- Builds a global environment from a program
+buildEnv :: Prog -> Env
+buildEnv p = foldl (\x y -> case y of 
+		 (VarDecl (VD _ name _)) -> set name (getType y x) x
+		 (FunDecl (FD _ name _ _ _)) -> set name (getType y x) x) 
+		(0, [], [], "") p
 
 
 infixl 5 >->
@@ -127,11 +136,19 @@ fullSubstitute (a,b) c = map (substitute (a,b)) c
 class TypeCheck a where
 	enforce :: a -> Env -> Env
 	getType :: a -> Env -> Type
+
+instance TypeCheck Decl where
+	enforce (FunDecl f) = enforce f
+	enforce (VarDecl v) = enforce v
+	getType (FunDecl f) = getType f
+	getType (VarDecl v) = getType v
 	
 instance TypeCheck VarDecl where
 	enforce (VD t name exp) = \e -> (set name t . unify t (getType exp e)) e
+	getType (VD t name exp) = const t
 
 instance TypeCheck FunDecl where
+	enforce (FD ret name args vars stmts) = enforce stmts
 	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
 	
 instance TypeCheck Exp where
