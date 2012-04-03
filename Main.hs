@@ -24,6 +24,6 @@ main = do
    f <- readFile s
    let prog =  (parseSuccess . progParse. scanSuccess. lineScan) f
    mapM_ putStrLn $ prettyPrint prog
-   putStrLn $ show $ buildEnv prog 
+   putStrLn $ show $ fullEnforce prog $ buildEnv prog 
 
 

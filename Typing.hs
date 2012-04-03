@@ -35,7 +35,7 @@ getf = \e@(i,m,n,f) -> get f e
 get :: Id -> Env -> (Type, Env)
 get id = \e@(i,m,n,f) -> case find (\(i,t) -> i == id) n of 
 	Just (i, t) -> (t, e)
-	Nothing -> error $ "Undefined variable or function '" ++ id ++ "'"
+	Nothing -> error $ "Undefined variable or function '" ++ id ++ "', " ++ show e
 
 -- Add variable or function to the symbol table
 set :: Id -> Type -> Env -> Env
@@ -54,6 +54,16 @@ buildEnv p = foldl (\x y -> case y of
 		 (VarDecl (VD _ name _)) -> set name (getType y x) x
 		 (FunDecl (FD _ name _ _ _)) -> set name (getType y x) x) 
 		(0, [], [], "") p
+
+-- TODO: keep track of global and local environment
+-- TODO: set the function that is about to get enforced
+fullEnforce :: Prog -> Env -> Env
+fullEnforce p e = foldl (\x y -> enforce y x) e p
+
+listDo :: (a -> Env -> Env) -> [a] -> Env -> Env
+listDo a l = \e -> foldl (\x y -> a y x) e l
+
+listEnforce l = listDo enforce l
 
 
 infixl 5 >->
@@ -135,6 +145,7 @@ fullSubstitute (a,b) c = map (substitute (a,b)) c
 
 class TypeCheck a where
 	enforce :: a -> Env -> Env
+	-- Note: getType should not modify the state
 	getType :: a -> Env -> Type
 
 instance TypeCheck Decl where
@@ -144,11 +155,13 @@ instance TypeCheck Decl where
 	getType (VarDecl v) = getType v
 	
 instance TypeCheck VarDecl where
-	enforce (VD t name exp) = \e -> (set name t . unify t (getType exp e)) e
+	enforce (VD t name exp) = \e -> (unify t (getType exp e) . set name t) e
 	getType (VD t name exp) = const t
 
 instance TypeCheck FunDecl where
-	enforce (FD ret name args vars stmts) = enforce stmts
+	-- TODO: all functions and all global variables are added to the environment twice now
+	-- FIXME: all args are added to the global state
+	enforce (FD ret name args vars stmts) = \e -> ((enforce stmts) . (listEnforce vars) . (listDo (\(t,n) -> set n t) args) . (set name (Function (map fst args) ret))) e
 	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
 	
 instance TypeCheck Exp where
@@ -156,6 +169,11 @@ instance TypeCheck Exp where
 	getType (Bool _) = const Bool_
 	getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
 	getType (Id name) = fst . get name
+	getType EmptyList = const (List_ (Generic_ "_list")) -- FIXME: what to do here?
+	getType (ExpOp_ o a b) = const Int_ -- FIXME: sometimes it's bool
+	getType (Op1_ o a) = const Int_ -- FIXME: sometimes it's bool
+	getType (FunCall (name, args)) = \e -> case fst (get name e) of -- FIXME: correct, different scope?
+		Function v r -> r
 
 	enforce (Int _) = id
 	enforce (Bool _) = id
