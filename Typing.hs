@@ -6,13 +6,18 @@ import Data.List
 -- Environment should keep track of the current Prog and all the function names,
 -- it should also keep track of the function the checker is currently in.
 -- Env = (fresh var count, typemap, symbol table, current function id)
-type Env = (Int, [(Type, Type)],[(Id, Type)], Id) 
+data Scope = Global | Local Id | FunctionCall
+type SymbolTable = ([(Type, Type)], [(Id, Type)])
+type Env = (Int, SymbolTable, SymbolTable, SymbolTable, Scope) 
 type TypeChecker =  Env -> (Type, Env)
+
+showEnv :: Env -> String
+showEnv (i,m,n,f) = "Fresh var count: " ++ show i ++ "\nType map: " ++ show m ++ "\nSymbol map: " ++ show n ++ "\nCurrent function: " ++ show f
 
 -- Generate a new type
 
 freshVar :: TypeChecker
-freshVar = \(i,m,n,f)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, n,f))
+freshVar = \(i,m,l,f,c)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, l,f,c))
 
 -- check if the type a is included in type b
 isIncluded :: Type -> Type -> Bool
@@ -28,28 +33,42 @@ unify a (Generic_ b) = unify (Generic_ b) a
 unify a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
 -- Gets the function type the checker is currently in
-getf :: Env -> (Type, Env)
-getf = \e@(i,m,n,f) -> get f e
-
--- Gets the type of a variable or function
-get :: Id -> Env -> (Type, Env)
-get id = \e@(i,m,n,f) -> case find (\(i,t) -> i == id) n of 
-	Just (i, t) -> (t, e)
-	Nothing -> error $ "Undefined variable or function '" ++ id ++ "', " ++ show e
-
--- Add variable or function to the symbol table
-set :: Id -> Type -> Env -> Env
-set id t = \e@(i,m,n,f) -> (i, m, (id, t) : n, f)
+--getf :: Env -> (Type, Env)
+--getf = \e@(i,m,n,l,f) -> get f e
 
 -- Sets the current function
-setf :: Id -> Env -> Env
-setf id = \e@(i,m,n,f) -> (i, m, n, id)
+setScope :: Id -> Env -> Env
+setScope id = \e@(i,m,l,f,c) -> (i, m, l, f, Local id)
+
+-- Add variable or function to the global symbol table
+addGlob :: SymbolTable -> Env -> Env
+addGlob (t, d) = \(i,(ot, od),l,f,c) -> (i,(t ++ ot, t ++ od),l,f,c)
+
+addLoc :: SymbolTable -> Env -> Env
+addLoc (t, d) = \(i,g,(ot, od),f,c) -> (i,g,(t ++ ot, t ++ od),f,c)
+
+-- Adds symbols in the function scope
+addFunc :: SymbolTable -> Env -> Env
+addFunc (t, d) = \(i,g,l,(ot, od),c) -> (i,g,l,(t ++ ot, t ++ od),c)
+
+addSymbol :: SymbolTable -> Env -> Env
+addSymbol s e@(i, m, l, f, Global) = addGlob s e
+addSymbol s e@(i, m, l, f, Local id) = addLoc s e
+addSymbol s e@(i, m, l, f, FunctionCall) = addFunc s e
+
+getSymbolType :: Id -> Env -> Env
+getSymbolType id e@(i, m, l, f, Global) = case find (\(i,t) -> i == id) m of
+	Just (i, t) -> (t, e)
+	Nothing -> error $ "Undefined variable or function '" ++ id ++ "', " ++ showEnv e
+getSymbolType id e@(i, m, l, f, _) = case find (\(i,t) -> i == id) l of
+	Just (i, t) -> (t, e)
+	Nothing -> fst (getSymbolType id (i, m, l, f, Global), e) -- search globally
 
 -- Adds a map from a generic to another type
 addMap :: Type -> Type -> Env -> Env
-addMap a@(Generic_ _) b = \e@(i, m, n, f) -> case find ((==a).fst) m of
+addMap a@(Generic_ _) b = \e@(i, m, l, f) -> case find ((==a).fst) m of
 	Just (_, c) ->  unify b c e -- Add a map from b to c
-	Nothing -> (i, (a, b) : m, n, f)
+	Nothing -> addSymbol [(a, b)]
 addMap a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
 -- Builds a global environment from a program
@@ -57,7 +76,7 @@ buildEnv :: Prog -> Env
 buildEnv p = foldl (\x y -> case y of 
 		 (VarDecl (VD _ name _)) -> set name (getType y x) x
 		 (FunDecl (FD _ name _ _ _)) -> set name (getType y x) x) 
-		(0, [], [], "") p
+		(defaultFunctions (0, [], [], "")) p
 
 -- Adds the default functions
 defaultFunctions :: Env -> Env
