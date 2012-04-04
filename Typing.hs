@@ -37,9 +37,14 @@ getLocalFunc :: Env -> (Type, Env)
 getLocalFunc e@(i,m,n,l,Local id) = getSymbol id e
 getLocalFunc _ =  error $ "Not in function"
 
--- Sets the current function
-setScope :: Id -> Env -> Env
-setScope id = \e@(i,m,l,f,c) -> (i, m, l, f, Local id)
+-- Sets the current scope
+setScope :: Scope -> Env -> Env
+setScope s = \e@(i,m,l,f,c) -> (i, m, l, f, s)
+
+-- Clear the local table
+-- TODO: store in another map
+clearLoc :: Env -> Env
+clearLoc = \e@(i,m,l,f,c) -> (i,m,([],[]),f,c)
 
 -- Add variable or function to the global symbol table
 addGlob :: SymbolTable -> Env -> Env
@@ -96,8 +101,9 @@ buildEnv p = foldl (\x y -> case y of
 		(defaultFunctions (0, ([],[]), ([],[]), ([],[]), Global)) p
 
 -- Adds the default functions
+-- Assumes the Scope is set to Global
 defaultFunctions :: Env -> Env
-defaultFunctions = \e@(i,g,l,f,c) -> (i, listDo addSymbol [hd, tl, isEmpty, fst, snd, print],l,f,c)
+defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
 	where
 	hd = ("head", Function [List_ (Generic_ "_r1")] (Generic_ "_r1"))
 	tl = ("tail", Function [List_ (Generic_ "_r2")] (List_ (Generic_ "_r2")))
@@ -168,9 +174,9 @@ instance Substitute FunDecl where
 		where
 		newargs = map (\(x,i) -> if (x == a) then (b,i) else (x, i))
 	typeScraper (FD ret name args vars stmts) = typeScraper ret ++ (concatMap (typeScraper . fst) args) ++ (concatMap typeScraper vars)
-	uniqueName f = \(i,m,n,f) -> (Undefined,(length vars + i,(zip vars [Generic_ ("_a" ++ show (x + 1)) | x <- [i..]]) ++ m, n,f))
-		where
-		vars = nub $ typeScraper f
+--	uniqueName f = \(i,m,n,f,c) -> (Undefined,(length vars + i,(zip vars [Generic_ ("_a" ++ show (x + 1)) | x <- [i..]]) ++ m, n,f,c))
+--		where
+--		vars = nub $ typeScraper f
 
 --	substInEnv f = \(i,m,n) -> \k@(FD ret name args vars stmts)->(Undefined,(i,m,[(getType k,name)])) (makeUnique f m)
 		
@@ -180,7 +186,7 @@ instance Substitute FunDecl where
 instance Substitute VarDecl where
 	substitute (a,b) (VD t name e) = VD (substitute (a,b) t) name e
 	typeScraper (VD t name e) = typeScraper t
-	uniqueName f  = \(i,m,n,a) -> (Undefined,(i + 1,(zip (typeScraper f) [(Generic_ ("_a" ++ show (i + 1)))]) ++ m, n,a))
+	--uniqueName f  = \(i,m,n,a) -> (Undefined,(i + 1,(zip (typeScraper f) [(Generic_ ("_a" ++ show (i + 1)))]) ++ m, n,a))
 	
 --  substInEnv v = \(i,m,n) -> \k@(VD t name e)->(Undefined,(i,m,[(t,name)])) (makeUnique v m)
 	
@@ -207,7 +213,8 @@ instance TypeCheck Decl where
 	getType (VarDecl v) = getType v
 	
 instance TypeCheck VarDecl where
-	enforce (VD t name exp) = \e -> (unify t (getType exp e) . addSymbol (name, t)) e
+	-- VarDecl has its own scope
+	enforce (VD t name exp) = \e -> (unify t (getType exp e) . addSymbol (name, t) . (setScope (Local name)) .clearLoc) e
 	getType (VD t name exp) = const t
 
 instance TypeCheck FunDecl where
