@@ -6,13 +6,13 @@ import Data.List
 -- Environment should keep track of the current Prog and all the function names,
 -- it should also keep track of the function the checker is currently in.
 -- Env = (fresh var count, typemap, symbol table, current function id)
-data Scope = Global | Local Id | FunctionCall
+data Scope = Global | Local Id | FunctionCall deriving Show
 type SymbolTable = ([(Type, Type)], [(Id, Type)])
 type Env = (Int, SymbolTable, SymbolTable, SymbolTable, Scope) 
 type TypeChecker =  Env -> (Type, Env)
 
 showEnv :: Env -> String
-showEnv (i,m,n,f) = "Fresh var count: " ++ show i ++ "\nType map: " ++ show m ++ "\nSymbol map: " ++ show n ++ "\nCurrent function: " ++ show f
+showEnv (i,m,l,f,c) = "Fresh var count: " ++ show i ++ "\nGlobal symbol table:" ++ show m ++ "\nLocal symbol table: " ++ show l ++ "\nFunction call symbol table: " ++ show f ++ "\nCurrent scope: " ++ show c
 
 -- Generate a new type
 
@@ -33,8 +33,9 @@ unify a (Generic_ b) = unify (Generic_ b) a
 unify a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
 -- Gets the function type the checker is currently in
---getf :: Env -> (Type, Env)
---getf = \e@(i,m,n,l,f) -> get f e
+getLocalFunc :: Env -> (Type, Env)
+getLocalFunc e@(i,m,n,l,Local id) = getSymbol id e
+getLocalFunc _ =  error $ "Not in function"
 
 -- Sets the current function
 setScope :: Id -> Env -> Env
@@ -42,45 +43,61 @@ setScope id = \e@(i,m,l,f,c) -> (i, m, l, f, Local id)
 
 -- Add variable or function to the global symbol table
 addGlob :: SymbolTable -> Env -> Env
-addGlob (t, d) = \(i,(ot, od),l,f,c) -> (i,(t ++ ot, t ++ od),l,f,c)
+addGlob (t, d) = \(i,(ot, od),l,f,c) -> (i,(t ++ ot, d ++ od),l,f,c)
 
 addLoc :: SymbolTable -> Env -> Env
-addLoc (t, d) = \(i,g,(ot, od),f,c) -> (i,g,(t ++ ot, t ++ od),f,c)
+addLoc (t, d) = \(i,g,(ot, od),f,c) -> (i,g,(t ++ ot, d ++ od),f,c)
 
 -- Adds symbols in the function scope
 addFunc :: SymbolTable -> Env -> Env
-addFunc (t, d) = \(i,g,l,(ot, od),c) -> (i,g,l,(t ++ ot, t ++ od),c)
+addFunc (t, d) = \(i,g,l,(ot, od),c) -> (i,g,l,(t ++ ot, d ++ od),c)
 
-addSymbol :: SymbolTable -> Env -> Env
-addSymbol s e@(i, m, l, f, Global) = addGlob s e
-addSymbol s e@(i, m, l, f, Local id) = addLoc s e
-addSymbol s e@(i, m, l, f, FunctionCall) = addFunc s e
+addSymbol :: (Id, Type) -> Env -> Env
+addSymbol s e@(i, m, l, f, Global) = addGlob ([], [s]) e
+addSymbol s e@(i, m, l, f, Local id) = addLoc ([], [s]) e
+addSymbol s e@(i, m, l, f, FunctionCall) = addFunc ([], [s]) e
 
-getSymbolType :: Id -> Env -> Env
-getSymbolType id e@(i, m, l, f, Global) = case find (\(i,t) -> i == id) m of
+addSymbolType :: (Type, Type) -> Env -> Env
+addSymbolType s e@(i, m, l, f, Global) = addGlob ([s], []) e
+addSymbolType s e@(i, m, l, f, Local id) = addLoc ([s], []) e
+addSymbolType s e@(i, m, l, f, FunctionCall) = addFunc ([s], []) e
+
+getSymbol :: Id -> Env -> (Type, Env)
+getSymbol id e@(i, (_, s), l, f, Global) = case find (\(i,t) -> i == id) s of
 	Just (i, t) -> (t, e)
 	Nothing -> error $ "Undefined variable or function '" ++ id ++ "', " ++ showEnv e
-getSymbolType id e@(i, m, l, f, _) = case find (\(i,t) -> i == id) l of
+getSymbol id e@(i, m, l@(_, s), f, _) = case find (\(i,t) -> i == id) s of
 	Just (i, t) -> (t, e)
-	Nothing -> fst (getSymbolType id (i, m, l, f, Global), e) -- search globally
+	Nothing -> fst (getSymbol id (i, m, l, f, Global), e) -- search globally
+
+getSymbolType t e@(_, (s, _), _, _, c) = getSymbolType' t c e
+
+getSymbolType' :: Type -> Scope -> Env-> Maybe (Type, Type) -- TODO: should it give Env back?
+getSymbolType' id Global e@(_, (s, _), _, _, _) = find (\(i,t) -> i == id) s
+getSymbolType' id (Local _) e@(_, _, (s, _), _, _) = case find (\(i,t) -> i == id) s of
+	Just (i, t) -> Just (i, t)
+	Nothing -> getSymbolType' id Global e
+getSymbolType' id (Local _) e@(_, _, (s, _), _, _) = case find (\(i,t) -> i == id) s of
+	Just (i, t) -> Just (i, t)
+	Nothing -> getSymbolType' id (Local "") e -- TODO: does it matter what the function is?
 
 -- Adds a map from a generic to another type
 addMap :: Type -> Type -> Env -> Env
-addMap a@(Generic_ _) b = \e@(i, m, l, f) -> case find ((==a).fst) m of
+addMap a@(Generic_ _) b = \e -> case getSymbolType a e of
 	Just (_, c) ->  unify b c e -- Add a map from b to c
-	Nothing -> addSymbol [(a, b)]
+	Nothing -> addSymbolType (a, b) e
 addMap a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
 -- Builds a global environment from a program
 buildEnv :: Prog -> Env
 buildEnv p = foldl (\x y -> case y of 
-		 (VarDecl (VD _ name _)) -> set name (getType y x) x
-		 (FunDecl (FD _ name _ _ _)) -> set name (getType y x) x) 
-		(defaultFunctions (0, [], [], "")) p
+		 (VarDecl (VD _ name _)) -> addSymbol (name, getType y x) x
+		 (FunDecl (FD _ name _ _ _)) -> addSymbol (name, getType y x) x)
+		(defaultFunctions (0, ([],[]), ([],[]), ([],[]), Global)) p
 
 -- Adds the default functions
 defaultFunctions :: Env -> Env
-defaultFunctions = \e@(i,m,n,f) -> (i,m,n ++ [hd, tl, isEmpty, fst, snd, print],f)
+defaultFunctions = \e@(i,g,l,f,c) -> (i, listDo addSymbol [hd, tl, isEmpty, fst, snd, print],l,f,c)
 	where
 	hd = ("head", Function [List_ (Generic_ "_r1")] (Generic_ "_r1"))
 	tl = ("tail", Function [List_ (Generic_ "_r2")] (List_ (Generic_ "_r2")))
@@ -190,27 +207,27 @@ instance TypeCheck Decl where
 	getType (VarDecl v) = getType v
 	
 instance TypeCheck VarDecl where
-	enforce (VD t name exp) = \e -> (unify t (getType exp e) . set name t) e
+	enforce (VD t name exp) = \e -> (unify t (getType exp e) . addSymbol (name, t)) e
 	getType (VD t name exp) = const t
 
 instance TypeCheck FunDecl where
 	-- TODO: all functions and all global variables are added to the environment twice now
 	-- FIXME: all args are added to the global state
 	-- TODO: now the current function is written here, do somewhere else?
-	enforce (FD ret name args vars stmts) = \e -> ((enforce stmts) . (listEnforce vars) . (listDo (\(t,n) -> set n t) args) . (set name (Function (map fst args) ret)) . (setf name)) e
+	enforce (FD ret name args vars stmts) = \e -> ((enforce stmts) . (listEnforce vars) . (listDo (\(t,n) -> addSymbol (n, t)) args) . (addSymbol (name, (Function (map fst args) ret))) . (setScope (Local name))) e
 	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
 	
 instance TypeCheck Exp where
 	getType (Int _) = const Int_
 	getType (Bool _) = const Bool_
 	getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
-	getType (Id name) = fst . get name
+	getType (Id name) = fst . getSymbol name
 	getType EmptyList = const (List_ (Generic_ "_list")) -- FIXME: what to do here?
 	-- FIXME: find all cases
 	getType (ExpOp_ AppCons a b) = getType b
 	getType (ExpOp_ o a b) = if elem o [Equals, LessEq, MoreEq, NotEq, Less, More] then const Bool_ else const Int_
 	getType (Op1_ o a) = const Int_ -- FIXME: sometimes it's bool
-	getType (FunCall (name, args)) = \e -> case fst (get name e) of -- FIXME: correct, different scope?
+	getType (FunCall (name, args)) = \e -> case fst (getSymbol name e) of -- FIXME: correct, different scope?
 		Function v r -> r
 
 	enforce (Int _) = id
@@ -222,20 +239,20 @@ instance TypeCheck Exp where
 
 	enforce (Op1_ o a) = \e -> unify (getType a e) Int_ e
 	enforce (Tuple a b) = enforce a . enforce b
-	enforce (Id name) = snd . get name 
+	enforce (Id name) = snd . getSymbol name 
 	-- TODO: check if number of arguments is the same
-	enforce (FunCall (name, args)) = \e -> case fst (get name e) of
+	enforce (FunCall (name, args)) = \e -> case fst (getSymbol name e) of
 		Function v r -> foldl (\x (a,b)-> unify a b x) e (zip v (map (\x -> getType x e) args))
 
 instance TypeCheck Stmt where	
 	enforce (If cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt
 	enforce (IfElse cond stmt1 stmt2) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt1 . enforce stmt2
-	enforce (Assign id exp) = \e -> unify (fst (get id e)) (getType exp e) e
+	enforce (Assign id exp) = \e -> unify (fst (getSymbol id e)) (getType exp e) e
 	enforce (While cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt
 	enforce (Seq stmt) = \e -> foldl (\x y -> enforce y x) e stmt
 	enforce (FunCall_ funCall) = enforce (FunCall funCall) -- call the Exp enforcer
 	enforce (Return a) = case a of 
 		Just exp -> (\e -> unify (getType exp e) (getRet e) e)  . (enforce exp)
 		Nothing -> \e -> unify Void (getRet e) e
-		where getRet = \e -> case getf e of 
+		where getRet = \e -> case getLocalFunc e of 
 				(Function a r, _) -> r
