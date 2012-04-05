@@ -14,11 +14,6 @@ type TypeChecker =  Env -> (Type, Env)
 showEnv :: Env -> String
 showEnv (i,m,l,f,c) = "Fresh var count: " ++ show i ++ "\nGlobal symbol table:" ++ show m ++ "\nLocal symbol table: " ++ show l ++ "\nFunction call symbol table: " ++ show f ++ "\nCurrent scope: " ++ show c
 
--- Generate a new type
-
-freshVar :: TypeChecker
-freshVar = \(i,m,l,f,c)->(Generic_ ("_a" ++ show (i + 1)), (i + 1, m, l,f,c))
-
 -- check if the type a is included in type b
 isIncluded :: Type -> Type -> Bool
 isIncluded k (Tuple_ a b) = isIncluded k a || isIncluded k b
@@ -36,6 +31,9 @@ unify a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ 
 getLocalFunc :: Env -> (Type, Env)
 getLocalFunc e@(i,m,n,l,Local id) = getSymbol id e
 getLocalFunc _ =  error $ "Not in function"
+
+getScope :: Env -> Scope
+getScope = \e@(i,m,l,f,c) -> c
 
 -- Sets the current scope
 setScope :: Scope -> Env -> Env
@@ -82,7 +80,7 @@ getSymbolType' id Global e@(_, (s, _), _, _, _) = find (\(i,t) -> i == id) s
 getSymbolType' id (Local _) e@(_, _, (s, _), _, _) = case find (\(i,t) -> i == id) s of
 	Just (i, t) -> Just (i, t)
 	Nothing -> getSymbolType' id Global e
-getSymbolType' id (Local _) e@(_, _, (s, _), _, _) = case find (\(i,t) -> i == id) s of
+getSymbolType' id FunctionCall e@(_, _, (s, _), _, _) = case find (\(i,t) -> i == id) s of
 	Just (i, t) -> Just (i, t)
 	Nothing -> getSymbolType' id (Local "") e -- TODO: does it matter what the function is?
 
@@ -93,7 +91,11 @@ addMap a@(Generic_ _) b = \e -> case getSymbolType a e of
 	Nothing -> addSymbolType (a, b) e
 addMap a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
 
+cleanEnv :: Env
+cleanEnv = (0, ([],[]), ([],[]), ([],[]), Global)
+
 -- Builds a global environment from a program
+-- TODO: Should this be done?
 buildEnv :: Prog -> Env
 buildEnv p = foldl (\x y -> case y of 
 		 (VarDecl (VD _ name _)) -> addSymbol (name, getType y x) x
@@ -123,84 +125,6 @@ listDo a l = \e -> foldl (\x y -> a y x) e l
 
 listEnforce l = listDo enforce l
 
-
-infixl 5 >->
-(>->) :: (Env -> (a, Env)) -> (a -> b) -> (Env -> (b, Env))
-(>->) p k cs =
-  case p cs of
-    (a, cs') -> (k a, cs')
-	
-infixl 6 +=+
-(+=+) :: TypeChecker -> TypeChecker -> Env -> ((Type, Type), Env)
-(+=+) a b e = case a e of
-	(t1, e1) -> 
-		case b e1 of
-			(t2, e2) -> ((t1,t2),e2)
-			
--- infixl 1 >>-
--- (>>-) :: TypeChecker -> (Type -> TypeChecker) -> TypeChecker
--- x >>- y = \env -> \(t,env) -> ((y t) env) (x env)
-
--- infixl 1 >>|
--- (>>|) :: TypeChecker -> TypeChecker -> TypeChecker 
--- x >>| y = x >>- \_-> y
-
-iter :: (a -> TypeChecker) -> [a] -> Env -> ([Type], Env)
-iter f [] e = ([], e)
-iter f l e = ([fst h] ++ fst t, snd t)
-	where
-		h = f (head l) e 
-		t = iter f (tail l) (snd h)
-
-			
-yield :: Type -> TypeChecker
-yield x = \e -> (x,e)
-
-class Substitute a where
-	substitute :: (Type, Type) -> a -> a
-	typeScraper :: a -> [Type]
-	makeUnique :: a -> [(Type,Type)] -> a
-	uniqueName :: a -> TypeChecker
-	substInEnv :: a -> TypeChecker
-	
-instance Substitute Decl where
-	substitute (a,b) (VarDecl v)  = VarDecl (substitute (a,b) v)
-	substitute (a,b) (FunDecl f) =  FunDecl (substitute (a,b) f)
-
--- BUG: first occurence is not replaced
-
-instance Substitute FunDecl where
-	substitute (a,b) (FD ret name args vars stmts) = FD (substitute (a,b) ret) name (newargs args) (map (substitute (a,b)) vars) stmts
-		where
-		newargs = map (\(x,i) -> if (x == a) then (b,i) else (x, i))
-	typeScraper (FD ret name args vars stmts) = typeScraper ret ++ (concatMap (typeScraper . fst) args) ++ (concatMap typeScraper vars)
---	uniqueName f = \(i,m,n,f,c) -> (Undefined,(length vars + i,(zip vars [Generic_ ("_a" ++ show (x + 1)) | x <- [i..]]) ++ m, n,f,c))
---		where
---		vars = nub $ typeScraper f
-
---	substInEnv f = \(i,m,n) -> \k@(FD ret name args vars stmts)->(Undefined,(i,m,[(getType k,name)])) (makeUnique f m)
-		
-	makeUnique f [(a, b)] =  substitute (a, b) f
-	makeUnique f l = makeUnique f (tail l)
-   
-instance Substitute VarDecl where
-	substitute (a,b) (VD t name e) = VD (substitute (a,b) t) name e
-	typeScraper (VD t name e) = typeScraper t
-	--uniqueName f  = \(i,m,n,a) -> (Undefined,(i + 1,(zip (typeScraper f) [(Generic_ ("_a" ++ show (i + 1)))]) ++ m, n,a))
-	
---  substInEnv v = \(i,m,n) -> \k@(VD t name e)->(Undefined,(i,m,[(t,name)])) (makeUnique v m)
-	
-	makeUnique v [(a, b)] =  substitute (a, b) v
-	makeUnique v l = makeUnique v (tail l)
-
-instance Substitute Type where
-	substitute (a,b) c = if (a == c) then b else c -- here I add the rulles
-	typeScraper k@(Generic_ t) = [k]
-	typeScraper _ = []
-
-fullSubstitute :: (Type,Type) -> Prog -> Prog
-fullSubstitute (a,b) c = map (substitute (a,b)) c
-
 class TypeCheck a where
 	enforce :: a -> Env -> Env
 	-- Note: getType should not modify the state
@@ -214,6 +138,7 @@ instance TypeCheck Decl where
 	
 instance TypeCheck VarDecl where
 	-- VarDecl has its own scope
+	-- TODO: not the case for varDecls in functions
 	enforce (VD t name exp) = \e -> (unify t (getType exp e) . addSymbol (name, t) . (setScope (Local name)) .clearLoc) e
 	getType (VD t name exp) = const t
 
@@ -221,6 +146,7 @@ instance TypeCheck FunDecl where
 	-- TODO: all functions and all global variables are added to the environment twice now
 	-- FIXME: all args are added to the global state
 	-- TODO: now the current function is written here, do somewhere else?
+	-- TODO: set the scope to Global if one exits a function
 	enforce (FD ret name args vars stmts) = \e -> ((enforce stmts) . (listEnforce vars) . (listDo (\(t,n) -> addSymbol (n, t)) args) . (addSymbol (name, (Function (map fst args) ret))) . (setScope (Local name))) e
 	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
 	
@@ -263,3 +189,4 @@ instance TypeCheck Stmt where
 		Nothing -> \e -> unify Void (getRet e) e
 		where getRet = \e -> case getLocalFunc e of 
 				(Function a r, _) -> r
+				_ -> error "Not in function" 
