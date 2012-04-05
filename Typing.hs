@@ -91,6 +91,12 @@ addMap a@(Generic_ _) b = \e -> case getSymbolType a e of
 	Nothing -> addSymbolType (a, b) e
 addMap a b = \e -> if a == b then e else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b ++ "\nDump:\n" ++ showEnv e
 
+-- Gets the final type of a symbol
+getReducedType :: Type -> Env -> Type
+getReducedType id = \e -> case getSymbolType id e of
+	Just (_, t) -> getReducedType t e
+	Nothing -> id
+
 cleanEnv :: Env
 cleanEnv = (0, ([],[]), Map.empty, ([],[]), Global)
 
@@ -137,14 +143,13 @@ instance TypeCheck Decl where
 	getType (VarDecl v) = getType v
 	
 instance TypeCheck VarDecl where
-	-- VarDecl has its own scope
-	-- TODO: not the case for varDecls in functions
-	enforce (VD t name exp) = \e -> if (getScope e == Global) then (setScope Global . unify t (getType exp e) . setScope (Local name) . addSymbol (name, t)) e else (unify t (getType exp e) . addSymbol (name, t)) e
+	enforce (VD t name exp) = \e -> if (getScope e == Global) then (setScope Global . (\ne -> unify t (getType exp ne) ne) . enforce exp . setScope (Local name) . addSymbol (name, t)) e else ( (\ne -> unify t (getType exp ne) ne) . enforce exp . addSymbol (name, t)) e
 	getType (VD t name exp) = const t
 
 instance TypeCheck FunDecl where
 	-- TODO: all functions and all global variables are added to the environment twice now
 	-- TODO: now the current function is written here, do somewhere else?
+	-- FIXME: update the global symbol definition with the constraints?
 	enforce (FD ret name args vars stmts) = \e -> (setScope Global . enforce stmts . listEnforce vars . (listDo (\(t,n) -> addSymbol (n, t)) args) . (setScope (Local name)) . (addSymbol (name, (Function (map fst args) ret)))) e
 	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
 	
@@ -158,8 +163,9 @@ instance TypeCheck Exp where
 	getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circumvent problems with empty list
 	getType (ExpOp_ o a b) = if elem o [Equals, LessEq, MoreEq, NotEq, Less, More] then const Bool_ else const Int_
 	getType (Op1_ o a) = const Int_ -- FIXME: sometimes it's bool
-	getType (FunCall (name, args)) = \e -> case getSymbol name e of -- FIXME: correct, different scope?
-		Function v r -> r
+	-- FIXME: getType FunCall only valid when called after enforce!
+	getType (FunCall (name, args)) = \e -> case getSymbol name e of
+		Function v r -> (getReducedType r . setScope FunctionCall) e
 
 	enforce (Int _) = id
 	enforce (Bool _) = id
@@ -172,8 +178,9 @@ instance TypeCheck Exp where
 	enforce (Tuple a b) = enforce a . enforce b
 	enforce (Id name) = seq (getSymbol name)  -- check if variable is defined
 	-- TODO: check if number of arguments is the same
+	-- FIXME: unify with global symbol definition?
 	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
-		Function v r -> foldl (\x (a,b)-> unify a b x) e (zip v (map (\x -> getType x e) args))
+		Function v r -> setScope (getScope e) $ foldl (\x (a,b)-> unify a b x) (setScope FunctionCall e) (zip v (map (\x -> getType x e) args))
 
 instance TypeCheck Stmt where	
 	enforce (If cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt

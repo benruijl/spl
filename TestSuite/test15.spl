@@ -1,8 +1,9 @@
-t k(t a) {
+v k(v a) {
 	return 5;
 }
 
 t c() {
-	t test = k(True);
+	t a = true;
+	t test = k(a);
 	return test;
 }
