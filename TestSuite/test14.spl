@@ -1,0 +1,19 @@
+bool isEmpty([t] list)
+{
+	if (list == [])return true;
+	return false;
+}	
+
+int main ()
+{
+	[int] list = [];
+	int n = 5;
+	int	i = 0;
+	
+	while (i < 5)
+	{
+		list = i:list;
+	}
+	
+	return 0;
+}

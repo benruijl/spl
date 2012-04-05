@@ -2,12 +2,9 @@ module Typing where
 
 import AST
 import Data.List
-
 import qualified Data.Map as Map
 
--- Environment should keep track of the current Prog and all the function names,
--- it should also keep track of the function the checker is currently in.
--- Env = (fresh var count, typemap, symbol table, current function id)
+-- Env = (fresh var count, global symb. table, local symb table, funcall symb table, scope)
 data Scope = Global | Local Id | FunctionCall deriving (Show, Eq)
 type SymbolTable = ([(Type, Type)], [(Id, Type)])
 type Env = (Int, SymbolTable, Map.Map Id SymbolTable, SymbolTable, Scope) 
@@ -25,9 +22,10 @@ isIncluded a b = a == b
 unify :: Type -> Type -> Env -> Env
 unify (List_ a) (List_ b) = unify a b
 unify (Tuple_ a b) (Tuple_ d e) = unify a d . unify b e
+unify (Generic_ a) (Generic_ b) = if (a == b) then id else addMap (Generic_ a) (Generic_ b) -- TODO: is this safe?
 unify (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ a ++ " and " ++ show b else addMap (Generic_ a) b
 unify a (Generic_ b) = unify (Generic_ b) a
-unify a b =  if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
+unify a b = \e -> if a == b then e else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b ++ "\nDump:\n" ++ showEnv e
 
 -- Gets the function type the checker is currently in
 -- TODO: rename
@@ -71,17 +69,17 @@ getSymbol id e@(i, m, l, f, Local fid) = case Map.lookup fid l of
 	Just (_, s) ->  case find (\(i,t) -> i == id) s of
 		Just (i, t) -> t
 		Nothing -> getSymbol id (i, m, l, f, Global) -- search globally
-	Nothing -> error $ "Unknown function " ++ fid -- TODO: this shouldn't happen!
+	Nothing -> getSymbol id (i, m, l, f, Global)
 
 getSymbolType t e@(_, (s, _), _, _, c) = getSymbolType' t c e
 
-getSymbolType' :: Type -> Scope -> Env-> Maybe (Type, Type) -- TODO: should it give Env back?
+getSymbolType' :: Type -> Scope -> Env-> Maybe (Type, Type)
 getSymbolType' id Global e@(_, (s, _), _, _, _) = find (\(i,t) -> i == id) s
 getSymbolType' id (Local fid) e@(_, _, l, _, _) = case Map.lookup fid l of 
 	Just (s,_) -> case find (\(i,t) -> i == id) s of
 		Just (i, t) -> Just (i, t)
 		Nothing -> getSymbolType' id Global e
-	Nothing -> error $ "Unknown function " ++ fid -- TODO: this shouldn't happen!
+	Nothing ->  getSymbolType' id Global e
 getSymbolType' id FunctionCall e@(_, _, _, (s, _), _) = case find (\(i,t) -> i == id) s of
 	Just (i, t) -> Just (i, t)
 	Nothing -> getSymbolType' id (Local "") e -- FIXME: it matter what the function is, this will fail!
@@ -91,7 +89,7 @@ addMap :: Type -> Type -> Env -> Env
 addMap a@(Generic_ _) b = \e -> case getSymbolType a e of
 	Just (_, c) ->  unify b c e -- Add a map from b to c
 	Nothing -> addSymbolType (a, b) e
-addMap a b = if a == b then id else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b
+addMap a b = \e -> if a == b then e else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b ++ "\nDump:\n" ++ showEnv e
 
 cleanEnv :: Env
 cleanEnv = (0, ([],[]), Map.empty, ([],[]), Global)
@@ -141,15 +139,13 @@ instance TypeCheck Decl where
 instance TypeCheck VarDecl where
 	-- VarDecl has its own scope
 	-- TODO: not the case for varDecls in functions
-	enforce (VD t name exp) = \e -> (unify t (getType exp e) . addSymbol (name, t) . (setScope (Local name))) e
+	enforce (VD t name exp) = \e -> if (getScope e == Global) then (setScope Global . unify t (getType exp e) . setScope (Local name) . addSymbol (name, t)) e else (unify t (getType exp e) . addSymbol (name, t)) e
 	getType (VD t name exp) = const t
 
 instance TypeCheck FunDecl where
 	-- TODO: all functions and all global variables are added to the environment twice now
-	-- FIXME: all args are added to the global state
 	-- TODO: now the current function is written here, do somewhere else?
-	-- TODO: set the scope to Global if one exits a function
-	enforce (FD ret name args vars stmts) = \e -> ((enforce stmts) . (listEnforce vars) . (listDo (\(t,n) -> addSymbol (n, t)) args) . (addSymbol (name, (Function (map fst args) ret))) . (setScope (Local name))) e
+	enforce (FD ret name args vars stmts) = \e -> (setScope Global . enforce stmts . listEnforce vars . (listDo (\(t,n) -> addSymbol (n, t)) args) . (setScope (Local name)) . (addSymbol (name, (Function (map fst args) ret)))) e
 	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
 	
 instance TypeCheck Exp where
@@ -159,7 +155,7 @@ instance TypeCheck Exp where
 	getType (Id name) = getSymbol name
 	getType EmptyList = const (List_ (Generic_ "_list")) -- FIXME: what to do here?
 	-- FIXME: find all cases
-	getType (ExpOp_ AppCons a b) = getType b
+	getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circumvent problems with empty list
 	getType (ExpOp_ o a b) = if elem o [Equals, LessEq, MoreEq, NotEq, Less, More] then const Bool_ else const Int_
 	getType (Op1_ o a) = const Int_ -- FIXME: sometimes it's bool
 	getType (FunCall (name, args)) = \e -> case getSymbol name e of -- FIXME: correct, different scope?

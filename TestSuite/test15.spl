@@ -1,0 +1,8 @@
+t k(t a) {
+	return 5;
+}
+
+t c() {
+	t test = k(True);
+	return test;
+}
