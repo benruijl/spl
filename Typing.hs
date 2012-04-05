@@ -104,8 +104,8 @@ cleanEnv = (0, ([],[]), Map.empty, ([],[]), Global)
 -- TODO: Should this be done?
 buildEnv :: Prog -> Env
 buildEnv p = foldl (\x y -> case y of 
-		 (VarDecl (VD _ name _)) -> addSymbol (name, getType y x) x
-		 (FunDecl (FD _ name _ _ _)) -> addSymbol (name, getType y x) x)
+		 (VarDecl (VD t name _)) -> addSymbol (name, t) x
+		 (FunDecl (FD ret name args vars stmts)) -> addSymbol (name, Function (map fst args) ret) x)
 		(defaultFunctions (0, ([],[]), Map.empty, ([],[]), Global)) p
 
 -- Adds the default functions
@@ -131,42 +131,38 @@ listDo a l = \e -> foldl (\x y -> a y x) e l
 
 listEnforce l = listDo enforce l
 
+-- Note: getType should not modify the state
+getType :: Exp -> Env -> Type
+getType (Int _) = const Int_
+getType (Bool _) = const Bool_
+getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
+getType (Id name) = getSymbol name
+getType EmptyList = const (List_ (Generic_ "_list")) -- FIXME: what to do here?
+-- FIXME: find all cases
+getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circumvent problems with empty list
+getType (ExpOp_ o a b) = if elem o [Equals, LessEq, MoreEq, NotEq, Less, More] then const Bool_ else const Int_
+getType (Op1_ o a) = const Int_ -- FIXME: sometimes it's bool
+-- FIXME: getType FunCall only valid when called after enforce!
+getType (FunCall (name, args)) = \e -> case getSymbol name e of
+	Function v r -> (getReducedType r . setScope FunctionCall) e
+
 class TypeCheck a where
 	enforce :: a -> Env -> Env
-	-- Note: getType should not modify the state
-	getType :: a -> Env -> Type
 
 instance TypeCheck Decl where
 	enforce (FunDecl f) = enforce f
 	enforce (VarDecl v) = enforce v
-	getType (FunDecl f) = getType f
-	getType (VarDecl v) = getType v
 	
 instance TypeCheck VarDecl where
 	enforce (VD t name exp) = \e -> if (getScope e == Global) then (setScope Global . (\ne -> unify t (getType exp ne) ne) . enforce exp . setScope (Local name) . addSymbol (name, t)) e else ( (\ne -> unify t (getType exp ne) ne) . enforce exp . addSymbol (name, t)) e
-	getType (VD t name exp) = const t
 
 instance TypeCheck FunDecl where
-	-- TODO: all functions and all global variables are added to the environment twice now
+	-- TODO: add all function definitions at the start, so they can be called from anywhere
 	-- TODO: now the current function is written here, do somewhere else?
 	-- FIXME: update the global symbol definition with the constraints?
 	enforce (FD ret name args vars stmts) = \e -> (setScope Global . enforce stmts . listEnforce vars . (listDo (\(t,n) -> addSymbol (n, t)) args) . (setScope (Local name)) . (addSymbol (name, (Function (map fst args) ret)))) e
-	getType (FD ret name args vars stmts) = \_ -> Function (map fst args) ret
-	
-instance TypeCheck Exp where
-	getType (Int _) = const Int_
-	getType (Bool _) = const Bool_
-	getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
-	getType (Id name) = getSymbol name
-	getType EmptyList = const (List_ (Generic_ "_list")) -- FIXME: what to do here?
-	-- FIXME: find all cases
-	getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circumvent problems with empty list
-	getType (ExpOp_ o a b) = if elem o [Equals, LessEq, MoreEq, NotEq, Less, More] then const Bool_ else const Int_
-	getType (Op1_ o a) = const Int_ -- FIXME: sometimes it's bool
-	-- FIXME: getType FunCall only valid when called after enforce!
-	getType (FunCall (name, args)) = \e -> case getSymbol name e of
-		Function v r -> (getReducedType r . setScope FunctionCall) e
 
+instance TypeCheck Exp where
 	enforce (Int _) = id
 	enforce (Bool _) = id
 	enforce EmptyList = id
@@ -194,4 +190,4 @@ instance TypeCheck Stmt where
 		Nothing -> \e -> unify Void (getRet e) e
 		where getRet = \e -> case getLocalFunc e of 
 				(Function a r) -> r
-				_ -> error "Not in function" 
+				_ -> error "Not in function" -- should not happen

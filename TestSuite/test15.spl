@@ -1,3 +1,5 @@
+t a = 5;
+
 v k(v a) {
 	return 5;
 }
