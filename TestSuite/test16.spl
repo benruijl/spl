@@ -5,7 +5,7 @@ bool f (t a) {
 void g () {
 	t a = 5;
 	[t] b = a : [];
-	bool c = f(b);
+	v c = f(b);
 }
 
 

@@ -7,11 +7,23 @@ import qualified Data.Map as Map
 -- Env = (fresh var count, global symb. table, local symb table, funcall symb table, scope)
 data Scope = Global | Local Id | FunctionCall deriving (Show, Eq)
 type SymbolTable = ([(Type, Type)], [(Id, Type)])
-type Env = (Int, SymbolTable, Map.Map Id SymbolTable, SymbolTable, Scope) 
+type SymbolRenameTable = ([(Type, Type)], Map.Map Type Type)
+type Env = (Int, SymbolTable, Map.Map Id SymbolTable, SymbolRenameTable, Scope) 
 type TypeChecker =  Env -> (Type, Env)
 
 showEnv :: Env -> String
 showEnv (i,m,l,f,c) = "Fresh var count: " ++ show i ++ "\nGlobal symbol table:" ++ show m ++ "\nLocal symbol table:\n" ++ Map.showTree l ++ "\nFunction call symbol table: " ++ show f ++ "\nCurrent scope: " ++ show c
+
+renameUnique :: Type -> Env -> Env
+renameUnique (Tuple_ a b) = (renameUnique b . renameUnique a)
+renameUnique (List_ a) = renameUnique a
+renameUnique a@(Generic_ _) = \e@(i,m,l,(b, s),c) -> case Map.lookup a s of
+	Just _ -> e
+	Nothing -> (i + 1,m,l,(b, Map.insert a (Generic_ ("_a" ++ show i)) s),c)
+renameUnique _ = id
+
+uniqueVar :: Env -> (Type, Env)
+uniqueVar = \e@(i,m,l,(b, s),c) -> (Generic_ ("_a" ++ show i), (i+1,m,l,(b, s),c))
 
 -- check if the type a is included in type b
 isIncluded :: Type -> Type -> Bool
@@ -23,7 +35,7 @@ unify :: Type -> Type -> Env -> Env
 unify (List_ a) (List_ b) = unify a b
 unify (Tuple_ a b) (Tuple_ d e) = unify a d . unify b e
 unify (Generic_ a) (Generic_ b) = if (a == b) then id else addMap (Generic_ a) (Generic_ b) -- TODO: is this safe?
-unify (Generic_ a) b = if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ a ++ " and " ++ show b else addMap (Generic_ a) b
+unify (Generic_ a) b = \e -> if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ a ++ " and " ++ show b ++ showEnv e else addMap (Generic_ a) b e
 unify a (Generic_ b) = unify (Generic_ b) a
 unify a b = \e -> if a == b then e else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b ++ "\nDump:\n" ++ showEnv e
 
@@ -48,8 +60,9 @@ addLoc :: SymbolTable -> Env -> Env
 addLoc (t, d) = \(i,g,l,f, Local id) -> (i,g, Map.insertWith (\(a,b) (ot, od) -> (a++ot, b++od)) id (t,d) l, f, Local id)
 
 -- Adds symbols in the function scope
+-- FIXME: a variable map is never added. assess if required?
 addFunc :: SymbolTable -> Env -> Env
-addFunc (t, d) = \(i,g,l,(ot, od),c) -> (i,g,l,(t ++ ot, d ++ od),c)
+addFunc (t, d) = \(i,g,l,(ot, od),c) -> (i,g,l,(t ++ ot, od),c)
 
 addSymbol :: (Id, Type) -> Env -> Env
 addSymbol s e@(i, m, l, f, Global) = addGlob ([], [s]) e
@@ -61,6 +74,7 @@ addSymbolType s e@(i, m, l, f, Global) = addGlob ([s], []) e
 addSymbolType s e@(i, m, l, f, Local id) = addLoc ([s], []) e
 addSymbolType s e@(i, m, l, f, FunctionCall) = addFunc ([s], []) e
 
+-- TODO: no getSymbol for FunctionCall
 getSymbol :: Id -> Env -> Type
 getSymbol id e@(i, (_, s), l, f, Global) = case find (\(i,t) -> i == id) s of
 	Just (i, t) -> t
@@ -98,7 +112,7 @@ getReducedType id = \e -> case getSymbolType id e of
 	Nothing -> id
 
 cleanEnv :: Env
-cleanEnv = (0, ([],[]), Map.empty, ([],[]), Global)
+cleanEnv = (0, ([],[]), Map.empty, ([], Map.empty), Global)
 
 -- Builds a global environment from a program
 -- TODO: Should this be done?
@@ -106,7 +120,7 @@ buildEnv :: Prog -> Env
 buildEnv p = foldl (\x y -> case y of 
 		 (VarDecl (VD t name _)) -> addSymbol (name, t) x
 		 (FunDecl (FD ret name args vars stmts)) -> addSymbol (name, Function (map fst args) ret) x)
-		(defaultFunctions (0, ([],[]), Map.empty, ([],[]), Global)) p
+		(defaultFunctions (0, ([],[]), Map.empty, ([],Map.empty), Global)) p
 
 -- Adds the default functions
 -- Assumes the Scope is set to Global
@@ -175,8 +189,18 @@ instance TypeCheck Exp where
 	enforce (Id name) = seq (getSymbol name)  -- check if variable is defined
 	-- TODO: check if number of arguments is the same
 	-- FIXME: unify with global symbol definition?
+	-- TODO: reset previous FunctionCall information
 	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
-		Function v r -> setScope (getScope e) $ foldl (\x (a,b)-> unify a b x) (setScope FunctionCall e) (zip v (map (\x -> getType x e) args))
+		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . setScope FunctionCall  . (listDo renameUnique v)) e
+			where
+			buildList = \env -> zip (map (\x -> transformTypes x env) v) (map (\x -> getType x e) args) -- use e and not env, so the scope is Local
+			-- FIXME: kind of a hack
+			transformTypes :: Type -> Env -> Type
+			transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
+				Just k -> k
+				Nothing -> t
+					
+			
 
 instance TypeCheck Stmt where	
 	enforce (If cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt

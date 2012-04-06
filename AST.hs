@@ -12,7 +12,7 @@ type ActArgs = [Exp]
 type FunCall = (Id, ActArgs)
 
 data Exp = ExpOp_ ExpOp Exp Exp | Int Int | Id Id  | Op1_ Op1 Exp | Bool Bool | FunCall FunCall | EmptyList | Tuple Exp Exp
-data Type = Generic_ Id | Int_ | Bool_ | Tuple_ Type Type | List_ Type | Undefined | Void | Function [Type] Type deriving Eq
+data Type = Generic_ Id | Int_ | Bool_ | Tuple_ Type Type | List_ Type | Undefined | Void | Function [Type] Type deriving (Eq, Ord)
 data Stmt = Seq [Stmt] | If Exp Stmt | IfElse Exp Stmt Stmt | While Exp Stmt | Assign Id Exp | FunCall_ FunCall | Return (Maybe Exp)
 data Op1 = Negate | UnitaryMinus
 data ExpOp = Add | Sub | Mod | Equals | Less | More | LessEq | MoreEq | NotEq | And | Or | AppCons | Mul | Div deriving Eq
