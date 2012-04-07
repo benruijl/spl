@@ -4,7 +4,9 @@
 
 void g () {
 	v a = f(true);
-	//t b = f(5);
+	
+	t w = 5 : [];
+	[t] z = f(w);
 }
 
 

@@ -119,8 +119,9 @@ getReducedType id = \e -> case getSymbolType id e of
 
 -- Looks the symbol up in a map and transforms it
 -- TODO: may be better to save local function definition
--- FIXME: not doing composite types
 transformTypes :: Type -> Env -> Type
+transformTypes (List_ a) = \e -> List_ (transformTypes a e)
+transformTypes (Tuple_ a b) = \e -> Tuple_ (transformTypes a e) (transformTypes b e)
 transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
 	Just k -> k
 	Nothing -> t
@@ -168,7 +169,7 @@ getType (Int _) = const Int_
 getType (Bool _) = const Bool_
 getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
 getType (Id name) = getSymbol name
-getType EmptyList = const (List_ (Generic_ "_list")) -- FIXME: what to do here?
+getType EmptyList = const (List_ (Generic_ "__EL")) -- FIXME: what to do here?
 getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circumvent problems with empty list
 getType (ExpOp_ o a b) = if elem o [Add, Sub, Mul, Div, Mod] then const Int_ else const Bool_
 getType (Op1_ UnitaryMinus _) = const Int_
@@ -197,6 +198,7 @@ instance TypeCheck Exp where
 	enforce (Bool _) = id
 	enforce EmptyList = id
 	 -- FIXME: is this correct?
+	enforce (ExpOp_ AppCons a EmptyList) = enforce a -- always accept
 	enforce (ExpOp_ AppCons a b) = \e -> (unify (List_ (getType a e)) (getType b e) . enforce a . enforce b) e
 	enforce (ExpOp_ o a b) = \e -> ((if elem o [And, Or] then unify (getType a e) Bool_ else unify (getType a e) Int_) . unify (getType a e) (getType b e) . enforce a . enforce b) e
 	enforce (Op1_ UnitaryMinus a) = \e -> unify (getType a e) Int_ e
@@ -210,7 +212,7 @@ instance TypeCheck Exp where
 			argCheck = if length args == length v then id else error "Number of arguments does not match"
 			buildList = \env -> zip (map (\x -> transformTypes x env) v) (map (\x -> getType x e) args) -- use e and not env, so the scope is Local
 			
-			-- FIXME: kind of a hack, also it's NOT transforming the type yet
+			-- FIXME: kind of a hack
 			collectReturnType = \e2 -> unify (transformTypes r e2) (((getReducedType r) . setScope (Local name)) e2) e2
 		_ -> error $ "Not a function: " ++ name		
 
