@@ -1,0 +1,10 @@
+[t] f (t a) {
+	return a : [];
+}
+
+void g () {
+	v a = f(true);
+	t b = f(5);
+}
+
+

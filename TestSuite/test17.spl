@@ -1,0 +1,8 @@
+t f (t a) {
+	return 5;
+}
+
+void g () {
+	bool b = !false;
+	bool c = f(b);
+}

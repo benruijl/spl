@@ -158,10 +158,10 @@ getType (Bool _) = const Bool_
 getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
 getType (Id name) = getSymbol name
 getType EmptyList = const (List_ (Generic_ "_list")) -- FIXME: what to do here?
--- FIXME: find all cases
 getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circumvent problems with empty list
-getType (ExpOp_ o a b) = if elem o [Equals, LessEq, MoreEq, NotEq, Less, More] then const Bool_ else const Int_
-getType (Op1_ o a) = const Int_ -- FIXME: sometimes it's bool
+getType (ExpOp_ o a b) = if elem o [Add, Sub, Mul, Div, Mod] then const Int_ else const Bool_
+getType (Op1_ UnitaryMinus _) = const Int_
+getType (Op1_ Negate _) = const Bool_
 -- FIXME: getType FunCall only valid when called after enforce!
 getType (FunCall (name, args)) = \e -> case getSymbol name e of
 	Function v r -> (getReducedType r . setScope FunctionCall) e
@@ -185,11 +185,10 @@ instance TypeCheck Exp where
 	enforce (Int _) = id
 	enforce (Bool _) = id
 	enforce EmptyList = id
-	-- TODO: make cases for ints and bools. depends on the operator
 	enforce (ExpOp_ AppCons a b) = \e -> (unify (List_ (getType a e)) (getType b e) . enforce a . enforce b) e
-	enforce (ExpOp_ o a b) = \e -> (unify (getType a e) (getType b e) . enforce a . enforce b) e
-
-	enforce (Op1_ o a) = \e -> unify (getType a e) Int_ e
+	enforce (ExpOp_ o a b) = \e -> ((if elem o [And, Or] then unify (getType a e) Bool_ else unify (getType a e) Int_) . unify (getType a e) (getType b e) . enforce a . enforce b) e
+	enforce (Op1_ UnitaryMinus a) = \e -> unify (getType a e) Int_ e
+	enforce (Op1_ Negate a) = \e -> unify (getType a e) Bool_ e
 	enforce (Tuple a b) = enforce a . enforce b
 	enforce (Id name) = seq (getSymbol name)  -- check if variable is defined
 	-- FIXME: unify with global symbol definition?
