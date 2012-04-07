@@ -202,9 +202,7 @@ instance TypeCheck Exp where
 			transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
 				Just k -> k
 				Nothing -> t
-		_ -> error $ "Not a function: " ++ name
-					
-			
+		_ -> error $ "Not a function: " ++ name		
 
 instance TypeCheck Stmt where	
 	enforce (If cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt
