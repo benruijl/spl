@@ -117,6 +117,14 @@ getReducedType id = \e -> case getSymbolType id e of
 	Just (_, t) -> getReducedType t e
 	Nothing -> id
 
+-- Looks the symbol up in a map and transforms it
+-- TODO: may be better to save local function definition
+-- FIXME: not doing composite types
+transformTypes :: Type -> Env -> Type
+transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
+	Just k -> k
+	Nothing -> t
+
 cleanEnv :: Env
 cleanEnv = (0, ([],[]), Map.empty, ([], Map.empty), Global)
 
@@ -167,7 +175,7 @@ getType (Op1_ UnitaryMinus _) = const Int_
 getType (Op1_ Negate _) = const Bool_
 -- FIXME: getType FunCall only valid when called after enforce!
 getType (FunCall (name, args)) = \e -> case getSymbol name e of
-	Function v r -> (getReducedType r . setScope FunctionCall) e
+	Function v r -> ((\e2 -> getReducedType (transformTypes r e2) e2) . setScope FunctionCall) e
 
 class TypeCheck a where
 	enforce :: a -> Env -> Env
@@ -188,6 +196,7 @@ instance TypeCheck Exp where
 	enforce (Int _) = id
 	enforce (Bool _) = id
 	enforce EmptyList = id
+	 -- FIXME: is this correct?
 	enforce (ExpOp_ AppCons a b) = \e -> (unify (List_ (getType a e)) (getType b e) . enforce a . enforce b) e
 	enforce (ExpOp_ o a b) = \e -> ((if elem o [And, Or] then unify (getType a e) Bool_ else unify (getType a e) Int_) . unify (getType a e) (getType b e) . enforce a . enforce b) e
 	enforce (Op1_ UnitaryMinus a) = \e -> unify (getType a e) Int_ e
@@ -196,18 +205,13 @@ instance TypeCheck Exp where
 	enforce (Id name) = seq (getSymbol name)  -- check if variable is defined
 	-- FIXME: unify with global symbol definition?
 	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
-		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . collectReturnType . setScope FunctionCall . (listDo renameUnique v) . clearFunc . argCheck) e
+		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . collectReturnType . setScope FunctionCall . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
 			where
 			argCheck = if length args == length v then id else error "Number of arguments does not match"
 			buildList = \env -> zip (map (\x -> transformTypes x env) v) (map (\x -> getType x e) args) -- use e and not env, so the scope is Local
 			
-			-- FIXME: kind of a hack
-			collectReturnType = \e -> unify (transformTypes r e) (((getReducedType r) . setScope (Local name)) e) e
-
-			transformTypes :: Type -> Env -> Type
-			transformTypes t = \(i, m, l, (_, s), c) -> case Map.lookup t s of
-				Just k -> k
-				Nothing -> t
+			-- FIXME: kind of a hack, also it's NOT transforming the type yet
+			collectReturnType = \e2 -> unify (transformTypes r e2) (((getReducedType r) . setScope (Local name)) e2) e2
 		_ -> error $ "Not a function: " ++ name		
 
 instance TypeCheck Stmt where	
