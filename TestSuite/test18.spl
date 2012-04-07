@@ -4,7 +4,7 @@
 
 void g () {
 	v a = f(true);
-	t b = f(5);
+	//t b = f(5);
 }
 
 

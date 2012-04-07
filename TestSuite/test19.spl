@@ -1,0 +1,7 @@
+t f() {
+	return 5;
+}
+
+void g() {
+	bool b = f();
+}

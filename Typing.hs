@@ -17,6 +17,7 @@ showEnv (i,m,l,f,c) = "Fresh var count: " ++ show i ++ "\nGlobal symbol table:" 
 showMap :: (Show a, Show b) => Map.Map a b -> String
 showMap m = unlines $ map (\(a, b) -> show a ++ ": " ++ show b) (Map.toList m)
 
+-- TODO: only applies for function calls
 renameUnique :: Type -> Env -> Env
 renameUnique (Tuple_ a b) = (renameUnique b . renameUnique a)
 renameUnique (List_ a) = renameUnique a
@@ -110,6 +111,8 @@ addMap a b = \e -> if a == b then e else error $ "Cannot unify types: " ++ show 
 
 -- Gets the final type of a symbol
 getReducedType :: Type -> Env -> Type
+getReducedType (List_ a) = \e -> List_ (getReducedType a e)
+getReducedType (Tuple_ a b) = \e -> Tuple_ (getReducedType a e) (getReducedType b e)
 getReducedType id = \e -> case getSymbolType id e of
 	Just (_, t) -> getReducedType t e
 	Nothing -> id
@@ -193,13 +196,16 @@ instance TypeCheck Exp where
 	enforce (Id name) = seq (getSymbol name)  -- check if variable is defined
 	-- FIXME: unify with global symbol definition?
 	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
-		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . setScope FunctionCall  . (listDo renameUnique v) . clearFunc . argCheck) e
+		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . collectReturnType . setScope FunctionCall . (listDo renameUnique v) . clearFunc . argCheck) e
 			where
 			argCheck = if length args == length v then id else error "Number of arguments does not match"
 			buildList = \env -> zip (map (\x -> transformTypes x env) v) (map (\x -> getType x e) args) -- use e and not env, so the scope is Local
+			
 			-- FIXME: kind of a hack
+			collectReturnType = \e -> unify (transformTypes r e) (((getReducedType r) . setScope (Local name)) e) e
+
 			transformTypes :: Type -> Env -> Type
-			transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
+			transformTypes t = \(i, m, l, (_, s), c) -> case Map.lookup t s of
 				Just k -> k
 				Nothing -> t
 		_ -> error $ "Not a function: " ++ name		
