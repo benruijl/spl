@@ -12,7 +12,10 @@ type Env = (Int, SymbolTable, Map.Map Id SymbolTable, SymbolRenameTable, Scope)
 type TypeChecker =  Env -> (Type, Env)
 
 showEnv :: Env -> String
-showEnv (i,m,l,f,c) = "Fresh var count: " ++ show i ++ "\nGlobal symbol table:" ++ show m ++ "\nLocal symbol table:\n" ++ Map.showTree l ++ "\nFunction call symbol table: " ++ show f ++ "\nCurrent scope: " ++ show c
+showEnv (i,m,l,f,c) = "Fresh var count: " ++ show i ++ "\nGlobal symbol table:" ++ show m ++ "\nLocal symbol table:\n" ++ showMap l ++ "\nFunction call symbol table: " ++ show f ++ "\nCurrent scope: " ++ show c
+
+showMap :: (Show a, Show b) => Map.Map a b -> String
+showMap m = unlines $ map (\(a, b) -> show a ++ ": " ++ show b) (Map.toList m)
 
 renameUnique :: Type -> Env -> Env
 renameUnique (Tuple_ a b) = (renameUnique b . renameUnique a)
@@ -114,6 +117,9 @@ getReducedType id = \e -> case getSymbolType id e of
 cleanEnv :: Env
 cleanEnv = (0, ([],[]), Map.empty, ([], Map.empty), Global)
 
+clearFunc :: Env -> Env
+clearFunc (i, m, l, f, c) = (i, m, l, ([],Map.empty), c)
+
 -- Builds a global environment from a program
 -- TODO: Should this be done?
 buildEnv :: Prog -> Env
@@ -172,7 +178,6 @@ instance TypeCheck VarDecl where
 
 instance TypeCheck FunDecl where
 	-- TODO: add all function definitions at the start, so they can be called from anywhere
-	-- TODO: now the current function is written here, do somewhere else?
 	-- FIXME: update the global symbol definition with the constraints?
 	enforce (FD ret name args vars stmts) = \e -> (setScope Global . enforce stmts . listEnforce vars . (listDo (\(t,n) -> addSymbol (n, t)) args) . (setScope (Local name)) . (addSymbol (name, (Function (map fst args) ret)))) e
 
@@ -187,18 +192,18 @@ instance TypeCheck Exp where
 	enforce (Op1_ o a) = \e -> unify (getType a e) Int_ e
 	enforce (Tuple a b) = enforce a . enforce b
 	enforce (Id name) = seq (getSymbol name)  -- check if variable is defined
-	-- TODO: check if number of arguments is the same
 	-- FIXME: unify with global symbol definition?
-	-- TODO: reset previous FunctionCall information
 	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
-		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . setScope FunctionCall  . (listDo renameUnique v)) e
+		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . setScope FunctionCall  . (listDo renameUnique v) . clearFunc . argCheck) e
 			where
+			argCheck = if length args == length v then id else error "Number of arguments does not match"
 			buildList = \env -> zip (map (\x -> transformTypes x env) v) (map (\x -> getType x e) args) -- use e and not env, so the scope is Local
 			-- FIXME: kind of a hack
 			transformTypes :: Type -> Env -> Type
 			transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
 				Just k -> k
 				Nothing -> t
+		_ -> error $ "Not a function: " ++ name
 					
 			
 
