@@ -125,6 +125,12 @@ transformTypes (Tuple_ a b) = \e -> Tuple_ (transformTypes a e) (transformTypes 
 transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
 	Just k -> k
 	Nothing -> t
+	
+getReducedTypeForName :: Id -> Env -> Type
+getReducedTypeForName id = (\e -> getReducedType (getSymbol id e) (setScope (Local id) e))
+
+getReducedTypeInFn :: Id -> Type -> Env -> Type
+getReducedTypeInFn fn tp = getReducedType tp . setScope (Local fn)
 
 cleanEnv :: Env
 cleanEnv = (0, ([],[]), Map.empty, ([], Map.empty), Global)
@@ -168,7 +174,7 @@ getType :: Exp -> Env -> Type
 getType (Int _) = const Int_
 getType (Bool _) = const Bool_
 getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
-getType (Id name) = (\e -> getReducedType (getSymbol name e) e) . setScope (Local name) 
+getType (Id name) = getReducedTypeForName name
 getType EmptyList = const (List_ (Generic_ "__EL")) -- FIXME: what to do here?
 getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circumvent problems with empty list
 getType (ExpOp_ o a b) = if elem o [Add, Sub, Mul, Div, Mod] then const Int_ else const Bool_
@@ -176,7 +182,7 @@ getType (Op1_ UnitaryMinus _) = const Int_
 getType (Op1_ Negate _) = const Bool_
 -- FIXME: getType FunCall only valid when called after enforce!
 getType (FunCall (name, args)) = \e -> case getSymbol name e of
-	Function v r -> ((\e2 -> getReducedType (transformTypes r e2) e2) . setScope FunctionCall) e
+	Function v r -> (getReducedTypeInFn name r . setScope FunctionCall) e
 
 class TypeCheck a where
 	enforce :: a -> Env -> Env
@@ -210,7 +216,7 @@ instance TypeCheck Exp where
 		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . collectReturnType . setScope FunctionCall . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
 			where
 			argCheck = if length args == length v then id else error "Number of arguments does not match"
-			buildList = \env -> zip (map (\x -> transformTypes x env) v) (map (\x -> getType x e) args) -- use e and not env, so the scope is Local
+			buildList = \env -> zip (map (\x -> getReducedTypeInFn name x env) v) (map (\x -> getType x e) args) -- use e and not env, so the scope is Local
 			
 			-- FIXME: kind of a hack
 			collectReturnType = \e2 -> unify (transformTypes r e2) (((getReducedType r) . setScope (Local name)) e2) e2
