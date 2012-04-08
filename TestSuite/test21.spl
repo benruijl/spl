@@ -1,0 +1,12 @@
+w test2() {
+	return 4;
+}
+
+// FIXME: (w,int) is added here
+z test() {
+  return test2() + 1;
+}
+
+void g() {
+	t a = test() + test2();
+}

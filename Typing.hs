@@ -168,7 +168,7 @@ getType :: Exp -> Env -> Type
 getType (Int _) = const Int_
 getType (Bool _) = const Bool_
 getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
-getType (Id name) = getSymbol name
+getType (Id name) = (\e -> getReducedType (getSymbol name e) e) . setScope (Local name) 
 getType EmptyList = const (List_ (Generic_ "__EL")) -- FIXME: what to do here?
 getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circumvent problems with empty list
 getType (ExpOp_ o a b) = if elem o [Add, Sub, Mul, Div, Mod] then const Int_ else const Bool_
