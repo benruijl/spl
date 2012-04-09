@@ -161,15 +161,16 @@ defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
 
 -- TODO: keep track of global and local environment
 -- TODO: set the function that is about to get enforced
-fullEnforce :: Prog -> Env -> Env
-fullEnforce p e = foldl (\x y -> enforce y x) e p
+--fullEnforce :: Prog -> Env -> Env
+--fullEnforce p e = foldl (\x y -> enforce y x) e p
 
 listDo :: (a -> Env -> Env) -> [a] -> Env -> Env
 listDo a l = \e -> foldl (\x y -> a y x) e l
 
-listEnforce l = listDo enforce l
+--listEnforce l = listDo enforce l
 
 -- Note: getType should not modify the state and getType should only be called directly after the enforce!
+{-
 getType :: Exp -> Env -> Type
 getType (Int _) = const Int_
 getType (Bool _) = const Bool_
@@ -182,10 +183,43 @@ getType (Op1_ UnitaryMinus _) = const Int_
 getType (Op1_ Negate _) = const Bool_
 getType (FunCall (name, args)) = \e -> case getSymbol name e of
 	Function v r -> (getReducedTypeInFn name r . setScope FunctionCall) e
+-}
+
+type TC a = Env -> (a, Env)
+
+yield :: a -> Env -> (a, Env)
+yield t e = (t, e)
+
+infixl 5 >->
+(>->) :: (Env -> (a, Env)) -> (a -> b) -> (Env -> (b, Env))
+(>->) p k e =
+  case p e of
+    (a,e') -> (k a, e')
+    
+infixl 6 #
+(#) :: TC a -> TC b -> TC (a,b)
+(#) a b e =
+  case a e of
+    (c, e') ->
+      case b e' of
+        (q, e'') -> ((c,q), e'')
+   
+-- unify 
+-- FIXME: is this correct? also, check the infix
+infixl 7 !~!
+(!~!) :: TC Type -> TC Type -> TC Type
+(!~!) a b e =  
+  case (a # b) e of
+    ((x, y), e') -> (x, unify x y e')
+    
+iter :: (a -> Env -> (a, Env)) -> [a] -> Env -> ([a], Env)
+iter f [] = yield []
+iter f (l:ls) = f l # iter f ls >-> (\(a,b) -> a:b)
 
 class TypeCheck a where
-	enforce :: a -> Env -> Env
+	enforce :: a -> Env -> (Type, Env)
 
+{-
 instance TypeCheck Decl where
 	enforce (FunDecl f) = enforce f
 	enforce (VarDecl v) = enforce v
@@ -197,21 +231,22 @@ instance TypeCheck FunDecl where
 	-- TODO: add all function definitions at the start, so they can be called from anywhere
 	-- FIXME: update the global symbol definition with the constraints?
 	enforce (FD ret name args vars stmts) = \e -> (setScope Global . enforce stmts . listEnforce vars . (listDo (\(t,n) -> addSymbol (n, t)) args) . (setScope (Local name)) . (addSymbol (name, (Function (map fst args) ret)))) e
+-}
 
 instance TypeCheck Exp where
-	enforce (Int _) = id
-	enforce (Bool _) = id
-	enforce EmptyList = id
-	 -- FIXME: is this correct?
-	enforce (ExpOp_ AppCons a EmptyList) = enforce a -- always accept
-	enforce (ExpOp_ AppCons a b) = \e -> (unify (List_ (getType a e)) (getType b e) . enforce a . enforce b) e
-	enforce (ExpOp_ o a b) = \e -> ((if elem o [And, Or] then unify (getType a e) Bool_ else unify (getType a e) Int_) . unify (getType a e) (getType b e) . enforce a . enforce b) e
-	enforce (Op1_ UnitaryMinus a) = \e -> unify (getType a (enforce a e)) Int_ e
-	enforce (Op1_ Negate a) = \e -> unify (getType a (enforce a e)) Bool_ e
-	enforce (Tuple a b) = enforce a . enforce b
-	enforce (Id name) = seq (getSymbol name)  -- check if variable is defined
+	enforce (Int _) = yield Int_
+	enforce (Bool _) = yield Bool_
+	enforce EmptyList = uniqueVar
+	enforce (ExpOp_ AppCons a EmptyList) = enforce a >-> (\x -> List_ x) -- FIXME: is this correct?
+	enforce (ExpOp_ AppCons a b) = (enforce a >-> (\x -> List_ x)) !~! enforce b
+	
+	enforce (ExpOp_ o a b) = if elem o [And, Or] then (enforce a) !~! (yield Bool_) #  (enforce b) !~! (yield Bool_) >-> (\_ -> Bool_) else yield Int_ -- enforce a !~! yield Int_ #  enforce b !~! yield Int_ >-> (\_ -> if elem o [Add, Sub, Mul, Div, Mod] then Bool else Int)
+	enforce (Op1_ UnitaryMinus a) =  enforce a !~! yield Int_
+	enforce (Op1_ Negate a) = enforce a !~! yield Bool_
+	enforce (Tuple a b) = enforce a # enforce b >-> (\(x, y) -> Tuple_ x y)
+	--enforce (Id name) = (getReducedTypeForName name, getSymbol name) -- FIXME: is it correct?  -- check if variable is defined
 	-- FIXME: unify with global symbol definition?
-	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
+{-	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
 		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . collectReturnType . setScope FunctionCall . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
 			where
 			argCheck = if length args == length v then id else error "Number of arguments does not match"
@@ -219,18 +254,19 @@ instance TypeCheck Exp where
 			
 			-- FIXME: kind of a hack
 			collectReturnType = \e2 -> unify (transformTypes r e2) (((getReducedType r) . setScope (Local name)) e2) e2
-		_ -> error $ "Not a function: " ++ name		
+		_ -> error $ "Not a function: " ++ name		-}
 
+-- TODO: what types to return
 instance TypeCheck Stmt where	
-	enforce (If cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt
-	enforce (IfElse cond stmt1 stmt2) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt1 . enforce stmt2
-	enforce (Assign id exp) = \e -> unify (getSymbol id e) (getType exp e) e
-	enforce (While cond stmt) = (\e -> unify (getType cond e) Bool_ e) . enforce stmt
-	enforce (Seq stmt) = \e -> foldl (\x y -> enforce y x) e stmt
-	enforce (FunCall_ funCall) = enforce (FunCall funCall) -- call the Exp enforcer
+	enforce (If cond stmt) = enforce cond !~! yield Bool_  # enforce stmt >-> (\_ -> Undefined)
+	enforce (IfElse cond stmt1 stmt2) = enforce cond !~! yield Bool_  # enforce stmt1 # enforce stmt2 >-> (\_ -> Undefined)
+	--	enforce (Assign id exp) = getSymbol id !~! enforce exp >-> (\_ -> Undefined)
+	enforce (While cond stmt) =  enforce cond !~! yield Bool_ # enforce stmt >-> (\_ -> Undefined)
+--	enforce (Seq stmt) = (iter enforce stmt) >-> (\_ -> Undefined)
+{-	enforce (FunCall_ funCall) = enforce (FunCall funCall) -- call the Exp enforcer
 	enforce (Return a) = case a of 
 		Just exp -> (\e -> unify (getType exp e) (getRet e) e)  . (enforce exp)
 		Nothing -> \e -> unify Void (getRet e) e
 		where getRet = \e -> case getLocalFunc e of 
 				(Function a r) -> r
-				_ -> error "Not in function" -- should not happen
+				_ -> error "Not in function" -- should not happen -}
