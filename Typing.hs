@@ -126,8 +126,9 @@ transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
 	Just k -> k
 	Nothing -> t
 	
-getReducedTypeForName :: Id -> Env -> Type
-getReducedTypeForName id = (\e -> getReducedType (getSymbol id e) (setScope (Local id) e))
+-- FIXME: remove these routines
+getReducedTypeForName :: Id -> TC Type
+getReducedTypeForName id = (\e -> (getReducedType (getSymbol id e) (setScope (Local id) e), e))
 
 getReducedTypeInFn :: Id -> Type -> Env -> Type
 getReducedTypeInFn fn tp = getReducedType tp . setScope (Local fn)
@@ -195,6 +196,13 @@ infixl 5 >->
 (>->) p k e =
   case p e of
     (a,e') -> (k a, e')
+
+-- mutate environment
+infixl 5 >-->
+(>-->) ::  (Env -> Env) -> (Env -> (a, Env)) -> (Env -> (a, Env))
+(>-->) k p e =
+  case p e of
+    (a,e') -> (a, k e')
     
 infixl 6 #
 (#) :: TC a -> TC b -> TC (a,b)
@@ -212,26 +220,29 @@ infixl 7 !~!
   case (a # b) e of
     ((x, y), e') -> (x, unify x y e')
     
-iter :: (a -> Env -> (a, Env)) -> [a] -> Env -> ([a], Env)
+iter :: (a -> Env -> (b, Env)) -> [a] -> Env -> ([b], Env)
 iter f [] = yield []
 iter f (l:ls) = f l # iter f ls >-> (\(a,b) -> a:b)
 
 class TypeCheck a where
 	enforce :: a -> Env -> (Type, Env)
 
-{-
 instance TypeCheck Decl where
 	enforce (FunDecl f) = enforce f
 	enforce (VarDecl v) = enforce v
 	
 instance TypeCheck VarDecl where
-	enforce (VD t name exp) = \e -> if (getScope e == Global) then (setScope Global . (\ne -> unify t (getType exp ne) ne) . enforce exp . setScope (Local name) . addSymbol (name, t)) e else ( (\ne -> unify t (getType exp ne) ne) . enforce exp . addSymbol (name, t)) e
+	-- TODO: remove e
+	-- FIXME: always show reduced type?
+	enforce (VD t name exp) = \e -> if getScope e == Global then (setScope Global >--> enf . setScope (Local name) . addSymbol (name, t)) e else (enf . addSymbol (name, t)) e
+		where
+		enf = yield t !~! enforce exp
 
 instance TypeCheck FunDecl where
 	-- TODO: add all function definitions at the start, so they can be called from anywhere
 	-- FIXME: update the global symbol definition with the constraints?
-	enforce (FD ret name args vars stmts) = \e -> (setScope Global . enforce stmts . listEnforce vars . (listDo (\(t,n) -> addSymbol (n, t)) args) . (setScope (Local name)) . (addSymbol (name, (Function (map fst args) ret)))) e
--}
+	-- TODO: watch out, # is from left to right
+	enforce (FD ret name args vars stmts) = (setScope Global >--> iter enforce vars # enforce stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
 
 instance TypeCheck Exp where
 	enforce (Int _) = yield Int_
@@ -239,12 +250,13 @@ instance TypeCheck Exp where
 	enforce EmptyList = uniqueVar
 	enforce (ExpOp_ AppCons a EmptyList) = enforce a >-> (\x -> List_ x) -- FIXME: is this correct?
 	enforce (ExpOp_ AppCons a b) = (enforce a >-> (\x -> List_ x)) !~! enforce b
-	
+
+	-- FIXME	
 	enforce (ExpOp_ o a b) = if elem o [And, Or] then (enforce a) !~! (yield Bool_) #  (enforce b) !~! (yield Bool_) >-> (\_ -> Bool_) else yield Int_ -- enforce a !~! yield Int_ #  enforce b !~! yield Int_ >-> (\_ -> if elem o [Add, Sub, Mul, Div, Mod] then Bool else Int)
 	enforce (Op1_ UnitaryMinus a) =  enforce a !~! yield Int_
 	enforce (Op1_ Negate a) = enforce a !~! yield Bool_
 	enforce (Tuple a b) = enforce a # enforce b >-> (\(x, y) -> Tuple_ x y)
-	--enforce (Id name) = (getReducedTypeForName name, getSymbol name) -- FIXME: is it correct?  -- check if variable is defined
+	enforce (Id name) = getReducedTypeForName name -- FIXME: is it correct?
 	-- FIXME: unify with global symbol definition?
 {-	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
 		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . collectReturnType . setScope FunctionCall . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
@@ -260,13 +272,13 @@ instance TypeCheck Exp where
 instance TypeCheck Stmt where	
 	enforce (If cond stmt) = enforce cond !~! yield Bool_  # enforce stmt >-> (\_ -> Undefined)
 	enforce (IfElse cond stmt1 stmt2) = enforce cond !~! yield Bool_  # enforce stmt1 # enforce stmt2 >-> (\_ -> Undefined)
-	--	enforce (Assign id exp) = getSymbol id !~! enforce exp >-> (\_ -> Undefined)
+	enforce (Assign id exp) = (\e -> (getSymbol id e, e)) !~! enforce exp >-> (\_ -> Undefined)
 	enforce (While cond stmt) =  enforce cond !~! yield Bool_ # enforce stmt >-> (\_ -> Undefined)
---	enforce (Seq stmt) = (iter enforce stmt) >-> (\_ -> Undefined)
-{-	enforce (FunCall_ funCall) = enforce (FunCall funCall) -- call the Exp enforcer
+	enforce (Seq stmt) = iter enforce stmt >-> (\_ -> Undefined)
+	enforce (FunCall_ funCall) = enforce (FunCall funCall) -- call the Exp enforcer
 	enforce (Return a) = case a of 
-		Just exp -> (\e -> unify (getType exp e) (getRet e) e)  . (enforce exp)
-		Nothing -> \e -> unify Void (getRet e) e
+		Just exp -> getRet !~! enforce exp
+		Nothing -> getRet !~! yield Void
 		where getRet = \e -> case getLocalFunc e of 
-				(Function a r) -> r
-				_ -> error "Not in function" -- should not happen -}
+				(Function a r) -> yield r e
+				_ -> error "Not in function" -- should not happen 
