@@ -1,0 +1,11 @@
+t f(t a) {
+	return a;
+}
+
+r g(r a) {
+	return a;
+}
+
+int h() {
+	return f(1) + g(2);
+}

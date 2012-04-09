@@ -169,7 +169,7 @@ listDo a l = \e -> foldl (\x y -> a y x) e l
 
 listEnforce l = listDo enforce l
 
--- Note: getType should not modify the state
+-- Note: getType should not modify the state and getType should only be called directly after the enforce!
 getType :: Exp -> Env -> Type
 getType (Int _) = const Int_
 getType (Bool _) = const Bool_
@@ -180,7 +180,6 @@ getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circum
 getType (ExpOp_ o a b) = if elem o [Add, Sub, Mul, Div, Mod] then const Int_ else const Bool_
 getType (Op1_ UnitaryMinus _) = const Int_
 getType (Op1_ Negate _) = const Bool_
--- FIXME: getType FunCall only valid when called after enforce!
 getType (FunCall (name, args)) = \e -> case getSymbol name e of
 	Function v r -> (getReducedTypeInFn name r . setScope FunctionCall) e
 
@@ -207,8 +206,8 @@ instance TypeCheck Exp where
 	enforce (ExpOp_ AppCons a EmptyList) = enforce a -- always accept
 	enforce (ExpOp_ AppCons a b) = \e -> (unify (List_ (getType a e)) (getType b e) . enforce a . enforce b) e
 	enforce (ExpOp_ o a b) = \e -> ((if elem o [And, Or] then unify (getType a e) Bool_ else unify (getType a e) Int_) . unify (getType a e) (getType b e) . enforce a . enforce b) e
-	enforce (Op1_ UnitaryMinus a) = \e -> unify (getType a e) Int_ e
-	enforce (Op1_ Negate a) = \e -> unify (getType a e) Bool_ e
+	enforce (Op1_ UnitaryMinus a) = \e -> unify (getType a (enforce a e)) Int_ e
+	enforce (Op1_ Negate a) = \e -> unify (getType a (enforce a e)) Bool_ e
 	enforce (Tuple a b) = enforce a . enforce b
 	enforce (Id name) = seq (getSymbol name)  -- check if variable is defined
 	-- FIXME: unify with global symbol definition?
