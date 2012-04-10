@@ -168,20 +168,8 @@ defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
 listDo :: (a -> Env -> Env) -> [a] -> Env -> Env
 listDo a l = \e -> foldl (\x y -> a y x) e l
 
---listEnforce l = listDo enforce l
-
--- Note: getType should not modify the state and getType should only be called directly after the enforce!
 {-
 getType :: Exp -> Env -> Type
-getType (Int _) = const Int_
-getType (Bool _) = const Bool_
-getType (Tuple a b) = \e -> Tuple_ (getType a e) (getType b e)
-getType (Id name) = getReducedTypeForName name
-getType EmptyList = const (List_ (Generic_ "__EL")) -- FIXME: what to do here?
-getType (ExpOp_ AppCons a b) = \e -> List_ (getType a e) -- TODO: done to circumvent problems with empty list
-getType (ExpOp_ o a b) = if elem o [Add, Sub, Mul, Div, Mod] then const Int_ else const Bool_
-getType (Op1_ UnitaryMinus _) = const Int_
-getType (Op1_ Negate _) = const Bool_
 getType (FunCall (name, args)) = \e -> case getSymbol name e of
 	Function v r -> (getReducedTypeInFn name r . setScope FunctionCall) e
 -}
@@ -256,19 +244,21 @@ instance TypeCheck Exp where
 	enforce (Op1_ UnitaryMinus a) =  enforce a !~! yield Int_
 	enforce (Op1_ Negate a) = enforce a !~! yield Bool_
 	enforce (Tuple a b) = enforce a # enforce b >-> (\(x, y) -> Tuple_ x y)
-	enforce (Id name) = getReducedTypeForName name -- FIXME: is it correct?
+	enforce (Id name) = getReducedTypeForName name -- FIXME: is this correct?
 	-- FIXME: unify with global symbol definition?
-{-	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
-		Function v r -> (setScope (getScope e) . (\env -> listDo (\(a,b)-> unify a b) (buildList env) env) . collectReturnType . setScope FunctionCall . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
+	-- FIXME: code is a mess
+	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
+		Function v r -> (\(z,e') -> (z, setScope (getScope e))) $ ((\(z,e') -> listDo (\(a,b)-> unify a b) z e') . buildList . collectReturnType . setScope FunctionCall . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
 			where
 			argCheck = if length args == length v then id else error "Number of arguments does not match"
-			buildList = \env -> zip (map (\x -> getReducedTypeInFn name x env) v) (map (\x -> getType x e) args) -- use e and not env, so the scope is Local
+					
+			buildList :: Env -> ([(Type, Type)], Env)
+			buildList = \env -> (\(z,e') -> (zip z (map (\x -> getReducedTypeInFn name x env) v), e')) (iter enforce args e) -- use e and not env, so the scope is Local
 			
 			-- FIXME: kind of a hack
 			collectReturnType = \e2 -> unify (transformTypes r e2) (((getReducedType r) . setScope (Local name)) e2) e2
-		_ -> error $ "Not a function: " ++ name		-}
+		_ -> error $ "Not a function: " ++ name		
 
--- TODO: what types to return
 instance TypeCheck Stmt where	
 	enforce (If cond stmt) = enforce cond !~! yield Bool_  # enforce stmt >-> (\_ -> Undefined)
 	enforce (IfElse cond stmt1 stmt2) = enforce cond !~! yield Bool_  # enforce stmt1 # enforce stmt2 >-> (\_ -> Undefined)
@@ -280,5 +270,5 @@ instance TypeCheck Stmt where
 		Just exp -> getRet !~! enforce exp
 		Nothing -> getRet !~! yield Void
 		where getRet = \e -> case getLocalFunc e of 
-				(Function a r) -> yield r e
+				(Function a r) -> yield r e -- TODO: return reduced type?
 				_ -> error "Not in function" -- should not happen 
