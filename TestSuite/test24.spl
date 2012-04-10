@@ -1,0 +1,12 @@
+l a() {
+	return 5;
+}
+
+v b() {
+	return true;
+}
+
+
+void g() {
+	t c = (a(), b());
+}

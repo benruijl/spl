@@ -6,6 +6,6 @@ r g(r a) {
 	return a;
 }
 
-int h() {
+l h() {
 	return f(1) + g(2);
 }
