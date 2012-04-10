@@ -162,8 +162,8 @@ defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
 
 -- TODO: keep track of global and local environment
 -- TODO: set the function that is about to get enforced
---fullEnforce :: Prog -> Env -> Env
---fullEnforce p e = foldl (\x y -> enforce y x) e p
+fullEnforce :: Prog -> Env -> Env
+fullEnforce p e = snd $ iter enforce p e
 
 listDo :: (a -> Env -> Env) -> [a] -> Env -> Env
 listDo a l = \e -> foldl (\x y -> a y x) e l
@@ -201,7 +201,7 @@ infixl 6 #
         (q, e'') -> ((c,q), e'')
    
 -- unify 
--- FIXME: is this correct? also, check the infix
+-- FIXME: is the returned type correct? also, check the infix
 infixl 7 !~!
 (!~!) :: TC Type -> TC Type -> TC Type
 (!~!) a b e =  
@@ -235,8 +235,8 @@ instance TypeCheck FunDecl where
 instance TypeCheck Exp where
 	enforce (Int _) = yield Int_
 	enforce (Bool _) = yield Bool_
-	enforce EmptyList = uniqueVar
-	enforce (ExpOp_ AppCons a EmptyList) = enforce a >-> (\x -> List_ x) -- FIXME: is this correct?
+	enforce EmptyList = uniqueVar >-> (\x -> List_ x)
+	enforce (ExpOp_ AppCons a EmptyList) = enforce a >-> (\x -> List_ x) -- always accept empty list
 	enforce (ExpOp_ AppCons a b) = (enforce a >-> (\x -> List_ x)) !~! enforce b
 
 	-- FIXME	
@@ -248,6 +248,15 @@ instance TypeCheck Exp where
 	-- FIXME: unify with global symbol definition?
 	-- FIXME: code is a mess
 	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
+		Function v r -> ((\e' -> (getReducedType r e', setScope (getScope e) e')) . returnEnforce . listEnforce buildList . setScope FunctionCall . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
+			where
+			returnEnforce = \e -> unify (getReducedTypeInFn name r e) (transformTypes r e) e
+			listEnforce = listDo (\(a,b)-> unify a b)
+			argCheck = if length args == length v then id else error "Number of arguments does not match"
+			buildList = \env -> (\(z,e') -> zip z (map (\x -> transformTypes (getReducedTypeInFn name x e') e') v)) (iter enforce args e)
+		_ -> error $ "Not a function: " ++ name	
+
+{-	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
 		Function v r -> (\(z,e') -> (z, setScope (getScope e))) $ ((\(z,e') -> listDo (\(a,b)-> unify a b) z e') . buildList . collectReturnType . setScope FunctionCall . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
 			where
 			argCheck = if length args == length v then id else error "Number of arguments does not match"
@@ -257,7 +266,7 @@ instance TypeCheck Exp where
 			
 			-- FIXME: kind of a hack
 			collectReturnType = \e2 -> unify (transformTypes r e2) (((getReducedType r) . setScope (Local name)) e2) e2
-		_ -> error $ "Not a function: " ++ name		
+		_ -> error $ "Not a function: " ++ name		-}
 
 instance TypeCheck Stmt where	
 	enforce (If cond stmt) = enforce cond !~! yield Bool_  # enforce stmt >-> (\_ -> Undefined)

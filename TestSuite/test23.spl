@@ -1,0 +1,7 @@
+void f() {
+	t a = [];
+	t b = 5 : a;
+
+	v c = [];
+	v d = true : c;
+}
