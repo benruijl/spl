@@ -19,6 +19,7 @@ showMap m = unlines $ map (\(a, b) -> show a ++ ": " ++ show b) (Map.toList m)
 
 -- TODO: only applies for function calls
 renameUnique :: Type -> Env -> Env
+renameUnique (Function v r) = listDo renameUnique (r:v)
 renameUnique (Tuple_ a b) = (renameUnique b . renameUnique a)
 renameUnique (List_ a) = renameUnique a
 renameUnique a@(Generic_ _) = \e@(i,m,l,(b, s),c) -> case Map.lookup a s of
@@ -126,15 +127,15 @@ transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
 	Just k -> k
 	Nothing -> t
 	
--- FIXME: remove these two routines
+-- TODO: remove the following routines
 getReducedTypeForName :: Id -> TC Type
 getReducedTypeForName id = (\e -> (getReducedType (getSymbol id e) (setScope (Local id) e), e))
 
 getReducedTypeInFn :: Id -> Type -> Env -> Type
 getReducedTypeInFn fn tp = getReducedType tp . setScope (Local fn)
 
-updateFunctionDef :: Id -> Env -> Env
-updateFunctionDef id = \e@(i,s,l,f,c) -> (i, Map.insert id  (fst $ getReducedTypeForName id e) s,l,f,c)
+updateDef :: Id -> Env -> Env
+updateDef id = \e -> addGlob (id, fst $ getReducedTypeForName id e) e
 
 cleanEnv :: Env
 cleanEnv = (0, Map.empty, Map.empty, ([], Map.empty), Global)
@@ -148,19 +149,19 @@ buildEnv :: Prog -> Env
 buildEnv p = foldl (\x y -> case y of 
 		 (VarDecl (VD t name _)) -> addSymbol (name, t) x
 		 (FunDecl (FD ret name args vars stmts)) -> addSymbol (name, Function (map fst args) ret) x)
-		(defaultFunctions (0, Map.empty, Map.empty, ([],Map.empty), Global)) p
+		(defaultFunctions cleanEnv) p
 
 -- Adds the default functions
 -- Assumes the Scope is set to Global
 defaultFunctions :: Env -> Env
 defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
 	where
-	hd = ("head", Function [List_ (Generic_ "_r1")] (Generic_ "_r1"))
-	tl = ("tail", Function [List_ (Generic_ "_r2")] (List_ (Generic_ "_r2")))
-	isEmpty = ("isEmpty", Function [List_ (Generic_ "_r3")] Bool_)
-	fst = ("fst", Function [Tuple_ (Generic_ "_r4") (Generic_ "_r5")] (Generic_ "_r4"))
-	snd = ("snd", Function [Tuple_ (Generic_ "_r6") (Generic_ "_r7")] (Generic_ "_r7"))
-	print = ("print", Function [Generic_ "_r8"] Void)
+	hd = ("head", Function [List_ (Generic_ "t")] (Generic_ "t"))
+	tl = ("tail", Function [List_ (Generic_ "t")] (List_ (Generic_ "t")))
+	isEmpty = ("isEmpty", Function [List_ (Generic_ "t")] Bool_)
+	fst = ("fst", Function [Tuple_ (Generic_ "t") (Generic_ "t")] (Generic_ "t"))
+	snd = ("snd", Function [Tuple_ (Generic_ "t") (Generic_ "t")] (Generic_ "t"))
+	print = ("print", Function [Generic_ "t"] Void)
 
 fullEnforce :: Prog -> Env -> Env
 fullEnforce p e = snd $ iter enforce p e
@@ -215,14 +216,13 @@ instance TypeCheck Decl where
 	
 instance TypeCheck VarDecl where
 	-- TODO: remove e
-	-- FIXME: always show reduced type?
-	enforce (VD t name exp) = \e -> if getScope e == Global then (setScope Global >--> enf . setScope (Local name) . addSymbol (name, t)) e else (enf . addSymbol (name, t)) e
+	enforce (VD t name exp) = \e -> if getScope e == Global then (setScope Global >--> updateDef name >--> enf . setScope (Local name) . addSymbol (name, t)) e else (enf . addSymbol (name, t)) e
 		where
 		enf = yield t !~! enforce exp
 
 instance TypeCheck FunDecl where
 	-- TODO: add all function definitions at the start, so they can be called from anywhere
-	enforce (FD ret name args vars stmts) = (setScope Global >--> updateFunctionDef name >--> iter enforce vars # enforce stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
+	enforce (FD ret name args vars stmts) = (setScope Global >--> updateDef name >--> iter enforce vars # enforce stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
 
 instance TypeCheck Exp where
 	enforce (Int _) = yield Int_
@@ -230,14 +230,11 @@ instance TypeCheck Exp where
 	enforce EmptyList = uniqueVar >-> (\x -> List_ x)
 	enforce (ExpOp_ AppCons a EmptyList) = enforce a >-> (\x -> List_ x) -- always accept empty list
 	enforce (ExpOp_ AppCons a b) = (enforce a >-> (\x -> List_ x)) !~! enforce b
-
-	-- FIXME	
-	enforce (ExpOp_ o a b) = if elem o [And, Or] then (enforce a) !~! (yield Bool_) #  (enforce b) !~! (yield Bool_) >-> (\_ -> Bool_) else yield Int_ -- enforce a !~! yield Int_ #  enforce b !~! yield Int_ >-> (\_ -> if elem o [Add, Sub, Mul, Div, Mod] then Bool else Int)
+	enforce (ExpOp_ o a b) = if elem o [And, Or] then enforce a !~! yield Bool_ #  enforce b !~! yield Bool_ >-> (\_ -> Bool_) else enforce a !~! yield Int_ #  enforce b !~! yield Int_ >-> (\_ -> if elem o [Add, Sub, Mul, Div, Mod] then Int_ else Bool_)
 	enforce (Op1_ UnitaryMinus a) =  enforce a !~! yield Int_
 	enforce (Op1_ Negate a) = enforce a !~! yield Bool_
 	enforce (Tuple a b) = enforce a # enforce b >-> (\(x, y) -> Tuple_ x y)
 	enforce (Id name) = getReducedTypeForName name -- FIXME: is this correct?
-	-- FIXME: unify with global symbol definition?
 	-- FIXME: code is a mess
 	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
 		Function v r -> (setScope (getScope e) >--> getReturnType . returnEnforce . listEnforce . buildList . (setScope FunctionCall >--> iter enforce args) . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
