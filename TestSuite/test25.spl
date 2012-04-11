@@ -1,0 +1,8 @@
+t f() {
+	return g();
+}
+
+k g() {
+	return 5;
+}
+
