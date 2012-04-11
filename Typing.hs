@@ -110,6 +110,7 @@ addMap a b = \e -> if a == b then e else error $ "Cannot unify types: " ++ show 
 
 -- Gets the final type of a symbol
 getReducedType :: Type -> Env -> Type
+getReducedType (Function a r) = \e -> Function (map (\x -> getReducedType x e) a) (getReducedType r e)
 getReducedType (List_ a) = \e -> List_ (getReducedType a e)
 getReducedType (Tuple_ a b) = \e -> Tuple_ (getReducedType a e) (getReducedType b e)
 getReducedType id = \e -> case getSymbolType id e of
@@ -133,11 +134,7 @@ getReducedTypeInFn :: Id -> Type -> Env -> Type
 getReducedTypeInFn fn tp = getReducedType tp . setScope (Local fn)
 
 updateFunctionDef :: Id -> Env -> Env
-updateFunctionDef id = \e@(i,s,l,f,c) -> (i, Map.insert id (newType e) s,l,f,c)
-	where
-	newType = \e -> case getSymbol id e of 
-				(Function a r) -> Function (map (\x -> getReducedType x (setScope (Local id) e)) a) (getReducedType r (setScope (Local id) e))
-				_ -> error $ "Undefined function " ++ id -- should not happen 
+updateFunctionDef id = \e@(i,s,l,f,c) -> (i, Map.insert id (getReducedTypeForName e)) s,l,f,c)
 
 cleanEnv :: Env
 cleanEnv = (0, Map.empty, Map.empty, ([], Map.empty), Global)
@@ -225,7 +222,7 @@ instance TypeCheck VarDecl where
 
 instance TypeCheck FunDecl where
 	-- TODO: add all function definitions at the start, so they can be called from anywhere
-	enforce (FD ret name args vars stmts) = (updateFunctionDef name >--> setScope Global >--> iter enforce vars # enforce stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
+	enforce (FD ret name args vars stmts) = (setScope Global >--> updateFunctionDef name >--> iter enforce vars # enforce stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
 
 instance TypeCheck Exp where
 	enforce (Int _) = yield Int_
