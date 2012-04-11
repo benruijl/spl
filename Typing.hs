@@ -134,7 +134,7 @@ getReducedTypeInFn :: Id -> Type -> Env -> Type
 getReducedTypeInFn fn tp = getReducedType tp . setScope (Local fn)
 
 updateFunctionDef :: Id -> Env -> Env
-updateFunctionDef id = \e@(i,s,l,f,c) -> (i, Map.insert id (getReducedTypeForName e)) s,l,f,c)
+updateFunctionDef id = \e@(i,s,l,f,c) -> (i, Map.insert id  (fst $ getReducedTypeForName id e) s,l,f,c)
 
 cleanEnv :: Env
 cleanEnv = (0, Map.empty, Map.empty, ([], Map.empty), Global)
