@@ -8,7 +8,7 @@ import qualified Data.Map as Map
 data Scope = Global | Local Id | FunctionCall deriving (Show, Eq)
 type SymbolTable = ([(Type, Type)], [(Id, Type)])
 type SymbolRenameTable = ([(Type, Type)], Map.Map Type Type)
-type Env = (Int, SymbolTable, Map.Map Id SymbolTable, SymbolRenameTable, Scope) 
+type Env = (Int, Map.Map Id Type, Map.Map Id SymbolTable, SymbolRenameTable, Scope) 
 type TypeChecker =  Env -> (Type, Env)
 
 showEnv :: Env -> String
@@ -57,8 +57,8 @@ setScope :: Scope -> Env -> Env
 setScope s = \e@(i,m,l,f,c) -> (i, m, l, f, s)
 
 -- Add variable or function to the global symbol table
-addGlob :: SymbolTable -> Env -> Env
-addGlob (t, d) = \(i,(ot, od),l,f,c) -> (i,(t ++ ot, d ++ od),l,f,c)
+addGlob :: (Id, Type) -> Env -> Env
+addGlob (id, t) = \(i,m,l,f,c) -> (i, Map.insert id t m,l,f,c)
 
 addLoc :: SymbolTable -> Env -> Env
 addLoc (t, d) = \(i,g,l,f, Local id) -> (i,g, Map.insertWith (\(a,b) (ot, od) -> (a++ot, b++od)) id (t,d) l, f, Local id)
@@ -69,19 +69,19 @@ addFunc :: SymbolTable -> Env -> Env
 addFunc (t, d) = \(i,g,l,(ot, od),c) -> (i,g,l,(t ++ ot, od),c)
 
 addSymbol :: (Id, Type) -> Env -> Env
-addSymbol s e@(i, m, l, f, Global) = addGlob ([], [s]) e
+addSymbol s e@(i, m, l, f, Global) = addGlob s e
 addSymbol s e@(i, m, l, f, Local id) = addLoc ([], [s]) e
 addSymbol s e@(i, m, l, f, FunctionCall) = addFunc ([], [s]) e
 
 addSymbolType :: (Type, Type) -> Env -> Env
-addSymbolType s e@(i, m, l, f, Global) = addGlob ([s], []) e
+addSymbolType s e@(i, m, l, f, Global) = error "Not allowed to add global map"
 addSymbolType s e@(i, m, l, f, Local id) = addLoc ([s], []) e
 addSymbolType s e@(i, m, l, f, FunctionCall) = addFunc ([s], []) e
 
 -- TODO: no getSymbol for FunctionCall
 getSymbol :: Id -> Env -> Type
-getSymbol id e@(i, (_, s), l, f, Global) = case find (\(i,t) -> i == id) s of
-	Just (i, t) -> t
+getSymbol id e@(i, s, l, f, Global) = case Map.lookup id s of
+	Just t -> t
 	Nothing -> error $ "Undefined variable or function '" ++ id ++ "', " ++ showEnv e
 getSymbol id e@(i, m, l, f, Local fid) = case Map.lookup fid l of 
 	Just (_, s) ->  case find (\(i,t) -> i == id) s of
@@ -89,15 +89,14 @@ getSymbol id e@(i, m, l, f, Local fid) = case Map.lookup fid l of
 		Nothing -> getSymbol id (i, m, l, f, Global) -- search globally
 	Nothing -> getSymbol id (i, m, l, f, Global)
 
-getSymbolType t e@(_, (s, _), _, _, c) = getSymbolType' t c e
+getSymbolType t e@(_, _, _, _, c) = getSymbolType' t c e
 
 getSymbolType' :: Type -> Scope -> Env-> Maybe (Type, Type)
-getSymbolType' id Global e@(_, (s, _), _, _, _) = find (\(i,t) -> i == id) s
 getSymbolType' id (Local fid) e@(_, _, l, _, _) = case Map.lookup fid l of 
 	Just (s,_) -> case find (\(i,t) -> i == id) s of
 		Just (i, t) -> Just (i, t)
-		Nothing -> getSymbolType' id Global e
-	Nothing ->  getSymbolType' id Global e
+		Nothing -> Nothing
+	Nothing -> Nothing
 getSymbolType' id FunctionCall e@(_, _, _, (s, _), _) = case find (\(i,t) -> i == id) s of
 	Just (i, t) -> Just (i, t)
 	Nothing -> getSymbolType' id (Local "") e -- FIXME: it matter what the function is, this will fail!
@@ -134,14 +133,14 @@ getReducedTypeInFn :: Id -> Type -> Env -> Type
 getReducedTypeInFn fn tp = getReducedType tp . setScope (Local fn)
 
 updateFunctionDef :: Id -> Env -> Env
-updateFunctionDef id = \e@(i,(ot, od),l,f,c) -> (i,(ot, (id, newType e) : filter ((/= id) . fst) od),l,f,c)
+updateFunctionDef id = \e@(i,s,l,f,c) -> (i, Map.insert id (newType e) s,l,f,c)
 	where
 	newType = \e -> case getSymbol id e of 
 				(Function a r) -> Function (map (\x -> getReducedType x (setScope (Local id) e)) a) (getReducedType r (setScope (Local id) e))
 				_ -> error $ "Undefined function " ++ id -- should not happen 
 
 cleanEnv :: Env
-cleanEnv = (0, ([],[]), Map.empty, ([], Map.empty), Global)
+cleanEnv = (0, Map.empty, Map.empty, ([], Map.empty), Global)
 
 clearFunc :: Env -> Env
 clearFunc (i, m, l, f, c) = (i, m, l, ([],Map.empty), c)
@@ -152,7 +151,7 @@ buildEnv :: Prog -> Env
 buildEnv p = foldl (\x y -> case y of 
 		 (VarDecl (VD t name _)) -> addSymbol (name, t) x
 		 (FunDecl (FD ret name args vars stmts)) -> addSymbol (name, Function (map fst args) ret) x)
-		(defaultFunctions (0, ([],[]), Map.empty, ([],Map.empty), Global)) p
+		(defaultFunctions (0, Map.empty, Map.empty, ([],Map.empty), Global)) p
 
 -- Adds the default functions
 -- Assumes the Scope is set to Global
