@@ -126,12 +126,19 @@ transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
 	Just k -> k
 	Nothing -> t
 	
--- FIXME: remove these routines
+-- FIXME: remove these two routines
 getReducedTypeForName :: Id -> TC Type
 getReducedTypeForName id = (\e -> (getReducedType (getSymbol id e) (setScope (Local id) e), e))
 
 getReducedTypeInFn :: Id -> Type -> Env -> Type
 getReducedTypeInFn fn tp = getReducedType tp . setScope (Local fn)
+
+updateFunctionDef :: Id -> Env -> Env
+updateFunctionDef id = \e@(i,(ot, od),l,f,c) -> (i,(ot, (id, newType e) : filter ((/= id) . fst) od),l,f,c)
+	where
+	newType = \e -> case getSymbol id e of 
+				(Function a r) -> Function (map (\x -> getReducedType x (setScope (Local id) e)) a) (getReducedType r (setScope (Local id) e))
+				_ -> error $ "Undefined function " ++ id -- should not happen 
 
 cleanEnv :: Env
 cleanEnv = (0, ([],[]), Map.empty, ([], Map.empty), Global)
@@ -177,7 +184,7 @@ infixl 5 >->
     (a,e') -> (k a, e')
 
 -- mutate environment
-infixl 5 >-->
+infixr 4 >-->
 (>-->) ::  (Env -> Env) -> (Env -> (a, Env)) -> (Env -> (a, Env))
 (>-->) k p e =
   case p e of
@@ -219,9 +226,7 @@ instance TypeCheck VarDecl where
 
 instance TypeCheck FunDecl where
 	-- TODO: add all function definitions at the start, so they can be called from anywhere
-	-- FIXME: update the global symbol definition with the constraints?
-	-- TODO: watch out, # is from left to right
-	enforce (FD ret name args vars stmts) = (setScope Global >--> iter enforce vars # enforce stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
+	enforce (FD ret name args vars stmts) = (updateFunctionDef name >--> setScope Global >--> iter enforce vars # enforce stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
 
 instance TypeCheck Exp where
 	enforce (Int _) = yield Int_
