@@ -17,7 +17,7 @@ showEnv (i,m,l,f,c) = "Fresh var count: " ++ show i ++ "\nGlobal symbol table:" 
 showMap :: (Show a, Show b) => Map.Map a b -> String
 showMap m = unlines $ map (\(a, b) -> show a ++ ": " ++ show b) (Map.toList m)
 
--- TODO: only applies for function calls
+-- Renames generic types to unique names and puts them in a map
 renameUnique :: Type -> Env -> Env
 renameUnique (Function v r) = listDo renameUnique (r:v)
 renameUnique (Tuple_ a b) = (renameUnique b . renameUnique a)
@@ -44,12 +44,6 @@ unify (Generic_ a) b = \e -> if isIncluded (Generic_ a) b then error $ "Cannot u
 unify a (Generic_ b) = unify (Generic_ b) a
 unify a b = \e -> if a == b then e else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b ++ "\nDump:\n" ++ showEnv e
 
--- Gets the function type the checker is currently in
--- TODO: rename
-getLocalFunc :: Env -> Type
-getLocalFunc e@(i,m,n,l,Local id) = getSymbol id e
-getLocalFunc _ =  error $ "Not in function"
-
 getScope :: Env -> Scope
 getScope = \e@(i,m,l,f,c) -> c
 
@@ -64,20 +58,18 @@ addGlob (id, t) = \(i,m,l,f,c) -> (i, Map.insert id t m,l,f,c)
 addLoc :: SymbolTable -> Env -> Env
 addLoc (t, d) = \(i,g,l,f, Local id) -> (i,g, Map.insertWith (\(a,b) (ot, od) -> (a++ot, b++od)) id (t,d) l, f, Local id)
 
--- Adds symbols in the function scope
--- FIXME: a variable map is never added. assess if required?
-addFunc :: SymbolTable -> Env -> Env
-addFunc (t, d) = \(i,g,l,(ot, od),c) -> (i,g,l,(t ++ ot, od),c)
+-- Adds symbol types in the function scope
+addFunc :: (Type, Type) -> Env -> Env
+addFunc t = \(i,g,l,(ot, od),c) -> (i,g,l,(t : ot, od),c)
 
 addSymbol :: (Id, Type) -> Env -> Env
 addSymbol s e@(i, m, l, f, Global) = addGlob s e
 addSymbol s e@(i, m, l, f, Local id) = addLoc ([], [s]) e
-addSymbol s e@(i, m, l, f, FunctionCall) = addFunc ([], [s]) e
 
 addSymbolType :: (Type, Type) -> Env -> Env
 addSymbolType s e@(i, m, l, f, Global) = error "Not allowed to add global map"
 addSymbolType s e@(i, m, l, f, Local id) = addLoc ([s], []) e
-addSymbolType s e@(i, m, l, f, FunctionCall) = addFunc ([s], []) e
+addSymbolType s e@(i, m, l, f, FunctionCall) = addFunc s e
 
 -- TODO: no getSymbol for FunctionCall
 getSymbol :: Id -> Env -> Type
@@ -119,7 +111,7 @@ getReducedType id = \e -> case getSymbolType id e of
 	Nothing -> id
 
 -- Looks the symbol up in a map and transforms it
--- TODO: may be better to save local function definition
+-- TODO: may be better to save updated local function definition
 transformTypes :: Type -> Env -> Type
 transformTypes (List_ a) = \e -> List_ (transformTypes a e)
 transformTypes (Tuple_ a b) = \e -> Tuple_ (transformTypes a e) (transformTypes b e)
@@ -127,9 +119,14 @@ transformTypes t = \e@(i, m, l, (_, s), c) -> case Map.lookup t s of
 	Just k -> k
 	Nothing -> t
 	
--- TODO: remove the following routines
+-- TODO: incorporate in combinators
 getReducedTypeForName :: Id -> TC Type
 getReducedTypeForName id = (\e -> (getReducedType (getSymbol id e) (setScope (Local id) e), e))
+
+-- Gets the function type the checker is currently in
+getCurrentFuncType :: Env -> Type
+getCurrentFuncType e@(i,m,n,l,Local id) = getSymbol id e
+getCurrentFuncType _ =  error $ "Not in function"
 
 getReducedTypeInFn :: Id -> Type -> Env -> Type
 getReducedTypeInFn fn tp = getReducedType tp . setScope (Local fn)
@@ -144,7 +141,6 @@ clearFunc :: Env -> Env
 clearFunc (i, m, l, f, c) = (i, m, l, ([],Map.empty), c)
 
 -- Builds a global environment from a program
--- TODO: Should this be done?
 buildEnv :: Prog -> Env
 buildEnv p = foldl (\x y -> case y of 
 		 (VarDecl (VD t name _)) -> addSymbol (name, t) x
@@ -163,8 +159,9 @@ defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
 	snd = ("snd", Function [Tuple_ (Generic_ "t") (Generic_ "t")] (Generic_ "t"))
 	print = ("print", Function [Generic_ "t"] Void)
 
-fullEnforce :: Prog -> Env -> Env
-fullEnforce p e = snd $ iter enforce p e
+-- Type check an entire program
+progTypeCheck :: Prog -> Env -> Env
+progTypeCheck p e = snd $ iter typeCheck p e
 
 listDo :: (a -> Env -> Env) -> [a] -> Env -> Env
 listDo a l = \e -> foldl (\x y -> a y x) e l
@@ -175,14 +172,14 @@ yield :: a -> Env -> (a, Env)
 yield t e = (t, e)
 
 infixl 5 >->
-(>->) :: (Env -> (a, Env)) -> (a -> b) -> (Env -> (b, Env))
+(>->) :: TC a -> (a -> b) -> TC b
 (>->) p k e =
   case p e of
     (a,e') -> (k a, e')
 
 -- mutate environment
 infixr 4 >-->
-(>-->) ::  (Env -> Env) -> (Env -> (a, Env)) -> (Env -> (a, Env))
+(>-->) ::  (Env -> Env) -> TC a -> TC a
 (>-->) k p e =
   case p e of
     (a,e') -> (a, k e')
@@ -195,8 +192,7 @@ infixl 6 #
       case b e' of
         (q, e'') -> ((c,q), e'')
    
--- unify 
--- FIXME: is the returned type correct? also, check the infix
+-- unify
 infixl 7 !~!
 (!~!) :: TC Type -> TC Type -> TC Type
 (!~!) a b e =  
@@ -208,54 +204,54 @@ iter f [] = yield []
 iter f (l:ls) = f l # iter f ls >-> (\(a,b) -> a:b)
 
 class TypeCheck a where
-	enforce :: a -> Env -> (Type, Env)
+	typeCheck :: a -> Env -> (Type, Env)
 
 instance TypeCheck Decl where
-	enforce (FunDecl f) = enforce f
-	enforce (VarDecl v) = enforce v
+	typeCheck (FunDecl f) = typeCheck f
+	typeCheck (VarDecl v) = typeCheck v
 	
 instance TypeCheck VarDecl where
 	-- TODO: remove e
-	enforce (VD t name exp) = \e -> if getScope e == Global then (setScope Global >--> updateDef name >--> enf . setScope (Local name) . addSymbol (name, t)) e else (enf . addSymbol (name, t)) e
+	typeCheck (VD t name exp) = \e -> if getScope e == Global then (setScope Global >--> updateDef name >--> enf . setScope (Local name) . addSymbol (name, t)) e else (enf . addSymbol (name, t)) e
 		where
-		enf = yield t !~! enforce exp
+		enf = yield t !~! typeCheck exp
 
 instance TypeCheck FunDecl where
 	-- TODO: add all function definitions at the start, so they can be called from anywhere
-	enforce (FD ret name args vars stmts) = (setScope Global >--> updateDef name >--> iter enforce vars # enforce stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
+	typeCheck (FD ret name args vars stmts) = (setScope Global >--> updateDef name >--> iter typeCheck vars # typeCheck stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
 
 instance TypeCheck Exp where
-	enforce (Int _) = yield Int_
-	enforce (Bool _) = yield Bool_
-	enforce EmptyList = uniqueVar >-> (\x -> List_ x)
-	enforce (ExpOp_ AppCons a EmptyList) = enforce a >-> (\x -> List_ x) -- always accept empty list
-	enforce (ExpOp_ AppCons a b) = (enforce a >-> (\x -> List_ x)) !~! enforce b
-	enforce (ExpOp_ o a b) = if elem o [And, Or] then enforce a !~! yield Bool_ #  enforce b !~! yield Bool_ >-> (\_ -> Bool_) else enforce a !~! yield Int_ #  enforce b !~! yield Int_ >-> (\_ -> if elem o [Add, Sub, Mul, Div, Mod] then Int_ else Bool_)
-	enforce (Op1_ UnitaryMinus a) =  enforce a !~! yield Int_
-	enforce (Op1_ Negate a) = enforce a !~! yield Bool_
-	enforce (Tuple a b) = enforce a # enforce b >-> (\(x, y) -> Tuple_ x y)
-	enforce (Id name) = getReducedTypeForName name -- FIXME: is this correct?
-	-- FIXME: code is a mess
-	enforce (FunCall (name, args)) = \e -> case getSymbol name e of
-		Function v r -> (setScope (getScope e) >--> getReturnType . returnEnforce . listEnforce . buildList . (setScope FunctionCall >--> iter enforce args) . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
+	typeCheck (Int _) = yield Int_
+	typeCheck (Bool _) = yield Bool_
+	typeCheck EmptyList = uniqueVar >-> (\x -> List_ x)
+	typeCheck (ExpOp_ AppCons a EmptyList) = typeCheck a >-> (\x -> List_ x) -- always accept empty list
+	typeCheck (ExpOp_ AppCons a b) = (typeCheck a >-> (\x -> List_ x)) !~! typeCheck b
+	typeCheck (ExpOp_ o a b) = if elem o [And, Or] then typeCheck a !~! yield Bool_ #  typeCheck b !~! yield Bool_ >-> (\_ -> Bool_) else typeCheck a !~! yield Int_ #  typeCheck b !~! yield Int_ >-> (\_ -> if elem o [Add, Sub, Mul, Div, Mod] then Int_ else Bool_)
+	typeCheck (Op1_ UnitaryMinus a) =  typeCheck a !~! yield Int_
+	typeCheck (Op1_ Negate a) = typeCheck a !~! yield Bool_
+	typeCheck (Tuple a b) = typeCheck a # typeCheck b >-> (\(x, y) -> Tuple_ x y)
+	typeCheck (Id name) = getReducedTypeForName name -- FIXME: is this correct?
+	-- FIXME: too complicated
+	typeCheck (FunCall (name, args)) = \e -> case getSymbol name e of
+		Function v r -> (setScope (getScope e) >--> getReturnType . returntypeCheck . listtypeCheck . buildList . (setScope FunctionCall >--> iter typeCheck args) . (listDo renameUnique (r:v)) . clearFunc . argCheck) e
 			where 
 			getReturnType = \e -> (getReducedType (transformTypes r e) e, e)
-			returnEnforce = \e -> unify (getReducedTypeInFn name r e) (transformTypes r e) e
-			listEnforce = \(z, e') -> listDo (\(a,b)-> unify a b) z e'
+			returntypeCheck = \e -> unify (getReducedTypeInFn name r e) (transformTypes r e) e
+			listtypeCheck = \(z, e') -> listDo (\(a,b)-> unify a b) z e'
 			argCheck = if length args == length v then id else error "Number of arguments does not match"
 			buildList = \(z,e') -> (zip z (map (\x -> transformTypes (getReducedTypeInFn name x e') e') v), e')
 		_ -> error $ "Not a function: " ++ name	
 
 instance TypeCheck Stmt where	
-	enforce (If cond stmt) = enforce cond !~! yield Bool_  # enforce stmt >-> (\_ -> Undefined)
-	enforce (IfElse cond stmt1 stmt2) = enforce cond !~! yield Bool_  # enforce stmt1 # enforce stmt2 >-> (\_ -> Undefined)
-	enforce (Assign id exp) = (\e -> (getSymbol id e, e)) !~! enforce exp >-> (\_ -> Undefined)
-	enforce (While cond stmt) =  enforce cond !~! yield Bool_ # enforce stmt >-> (\_ -> Undefined)
-	enforce (Seq stmt) = iter enforce stmt >-> (\_ -> Undefined)
-	enforce (FunCall_ funCall) = enforce (FunCall funCall) -- call the Exp enforcer
-	enforce (Return a) = case a of 
-		Just exp -> getRet !~! enforce exp
+	typeCheck (If cond stmt) = typeCheck cond !~! yield Bool_  # typeCheck stmt >-> (\_ -> Undefined)
+	typeCheck (IfElse cond stmt1 stmt2) = typeCheck cond !~! yield Bool_  # typeCheck stmt1 # typeCheck stmt2 >-> (\_ -> Undefined)
+	typeCheck (Assign id exp) = (\e -> (getSymbol id e, e)) !~! typeCheck exp >-> (\_ -> Undefined)
+	typeCheck (While cond stmt) =  typeCheck cond !~! yield Bool_ # typeCheck stmt >-> (\_ -> Undefined)
+	typeCheck (Seq stmt) = iter typeCheck stmt >-> (\_ -> Undefined)
+	typeCheck (FunCall_ funCall) = typeCheck (FunCall funCall) -- call the Exp typeChecker
+	typeCheck (Return a) = case a of 
+		Just exp -> getRet !~! typeCheck exp
 		Nothing -> getRet !~! yield Void
-		where getRet = \e -> case getLocalFunc e of 
+		where getRet = \e -> case getCurrentFuncType e of 
 				(Function a r) -> yield r e -- TODO: return reduced type?
 				_ -> error "Not in function" -- should not happen 
