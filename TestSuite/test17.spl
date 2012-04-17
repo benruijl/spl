@@ -1,5 +1,5 @@
 t f (t a) {
-	return 5;
+	return a;
 }
 
 void g () {
