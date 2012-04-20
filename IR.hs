@@ -33,6 +33,12 @@ addVarToFrame :: Label -> F Int
 addVarToFrame l r@(Reg {curFrame=f}) = case f of
 	(Frame {curPos=p,varMap=m} ) -> (p, r{curFrame=f{curPos=p+1, varMap= Map.insert l p m}})
 
+getVarLoc :: Label -> F Int
+getVarLoc l r@(Reg {curFrame=f}) = case f of
+	(Frame {varMap=m} ) -> case Map.lookup l m of
+		Just x -> yield x r
+		Nothing -> error $ "Error: location of variable " ++ l ++ " not found in map"
+
 -- make a sequence from list
 seq :: [Stm] -> Stm
 seq [x] = x
@@ -42,7 +48,7 @@ seq (x:xs) = SEQ x (seq xs)
 unEx :: IR -> F Exp
 unEx (Ex e) = yield e
 unEx (Nx s) = yield $ ESEQ s (CONST 0)
-unEx (Cx c) = newReg # newLabel # newLabel >-> \((r,t),f) -> ESEQ (seq [(MOVE (TEMP r) (CONST 1)), (c t f), (LABEL f), (MOVE (TEMP r) (CONST 1)), (LABEL t)]) (TEMP r)
+unEx (Cx c) = newReg # newLabel # newLabel >-> \((r,t),f) -> ESEQ (seq [(MOVE (TEMP r) (CONST 1)), (c t f), (LABEL f), (MOVE (TEMP r) (CONST 0)), (LABEL t)]) (TEMP r)
 
 unNx :: IR -> F Stm
 unNx (Ex e) = yield $ EXP e
@@ -68,7 +74,10 @@ instance Convert AST.Exp where
 	convert (ExpOp_ AppCons a b) =
 	convert (ExpOp_ o a b) = 
 	convert (Tuple a b) = -}
---	convert (Id name) = MEM (BINOP PLUS (TEMP "fp") (CONST k))
+
+	-- TODO: only looks up local function, expand?
+	convert (AST.Id name) = yield $ Ex $ MEM (TEMP name)
+	--convert (AST.Id name) =  getVarLoc name >-> \k -> Ex $ MEM (BINOP PLUS (TEMP "fp") (CONST k))
 
 -- TODO: add negate, and, or
 {-getCond (AST.Bool True) = (EQ, CONST 1, CONST 1)
@@ -81,9 +90,8 @@ getCond (AST.ExpOp_ o x y) = (getOp o, convert x, convert y)
 	m = [(AST.Equals, EQ), (AST.Less, LT), (AST.More, GT), (AST.LessEq, LE), (AST.MoreEq, GE), (AST.NotEq, NE)]-}
 
 instance Convert AST.Stmt where
--- TODO: where to jump on false?
---	convert (If cond stmt) = \((o, x, y) -> CJUMP o x y (convert stmt) ) (getCond cond)
---	convert (IfElse cond stmt1 stmt2) = \((o, x, y) -> CJUMP o x y (convert stmt1) (convert stmt2)) (getCond cond)
+	convert (AST.If cond stmt) = convert cond !++! unCx # (convert stmt !++! (\(c,s) -> (unNx s) >-> (\x -> (c,x)))) # newLabel # newLabel >-> \(((c,s),t),f) -> Nx $ seq [c t f, LABEL t, s ,LABEL f]
+--	convert (AST.IfElse cond stmt1 stmt2) = \((o, x, y) -> CJUMP o x y (convert stmt1) (convert stmt2)) (getCond cond)
 	convert (AST.While cond stmt) = convert cond # convert stmt !++! uncurry parseWhile
 		where
 		parseWhile c s = newLabel # newLabel !++! \(b,d) -> (unCx c >-> \x -> (x b d, b, d)) # unNx s # newLabel  >-> \(((cc, b, d),ss),t) -> Nx (seq [LABEL t, cc, LABEL b, ss, JUMP (NAME t) [], LABEL d])
@@ -93,7 +101,8 @@ instance Convert AST.Stmt where
 	convert (AST.Return a) = -}
 
 instance Convert AST.VarDecl where
-	convert (AST.VD t id exp) = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) e
+	convert (AST.VD t id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
+--	convert (AST.VD t id exp) = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) e
 
 
 
