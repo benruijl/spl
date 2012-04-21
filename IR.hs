@@ -81,7 +81,7 @@ instance Convert AST.Exp where
 	{-convert AST.EmptyList =
 	convert (AST.ExpOp_ AST.AppCons a AST.EmptyList) = 
 	convert (AST.ExpOp_ AST.AppCons a b) =
-	convert (AST.ExpOp_ AST.Div a b)
+	convert (AST.ExpOp_ AST.Mod a b)
 	convert (AST.Tuple a b) = -}
 
 	-- TODO: only looks up local function, expand?
@@ -97,8 +97,8 @@ instance Convert AST.Stmt where
 	convert (AST.Assign id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
 	--convert (AST.Assign id exp) = \e -> Nx (MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) (unEx $ convert exp e))
 	convert (AST.Seq stmt) = (iter (\x -> convert x !++! unNx) stmt) >-> \x -> Nx (seq x)
-{-	convert (AST.FunCall_ funCall) =
-	convert (AST.Return a) = -}
+	convert (AST.FunCall_ (id, args)) = (iter (\x -> convert x !++! unEx) args) >-> \x -> Ex $ CALL (TEMP id) x
+	--convert (AST.Return a) =
 
 instance Convert AST.VarDecl where
 	convert (AST.VD t id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
