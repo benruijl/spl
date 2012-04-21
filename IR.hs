@@ -78,11 +78,11 @@ instance Convert AST.Exp where
 			Just a -> a
 			Nothing -> error $ "Undefined operator"
 	
-	{-convert EmptyList =
-	convert (ExpOp_ AppCons a EmptyList) = 
-	convert (ExpOp_ AppCons a b) =
-	convert (ExpOp_ Div a b)
-	convert (Tuple a b) = -}
+	{-convert AST.EmptyList =
+	convert (AST.ExpOp_ AST.AppCons a AST.EmptyList) = 
+	convert (AST.ExpOp_ AST.AppCons a b) =
+	convert (AST.ExpOp_ AST.Div a b)
+	convert (AST.Tuple a b) = -}
 
 	-- TODO: only looks up local function, expand?
 	convert (AST.Id name) = yield $ Ex $ MEM (TEMP name)
@@ -90,7 +90,7 @@ instance Convert AST.Exp where
 
 instance Convert AST.Stmt where
 	convert (AST.If cond stmt) = convert cond !++! unCx # convert stmt !-+! unNx # newLabel # newLabel >-> \(((c,s),t),f) -> Nx $ seq [c t f, LABEL t, s ,LABEL f]
---	convert (AST.IfElse cond stmt1 stmt2) = \((o, x, y) -> CJUMP o x y (convert stmt1) (convert stmt2)) (getCond cond)
+	convert (AST.IfElse cond stmt1 stmt2) = convert cond !++! unCx # convert stmt1 !-+! unNx # convert stmt2 !-+! unNx # newLabel # newLabel # newLabel >-> \(((((c,s),fb),t),f),d) -> Nx $ seq [c t f, LABEL t, s, JUMP (NAME d) [], LABEL f, fb, LABEL d]
 	convert (AST.While cond stmt) = convert cond # convert stmt !++! uncurry parseWhile
 		where
 		parseWhile c s = newLabel # newLabel !++! \(b,d) -> (unCx c >-> \x -> (x b d, b, d)) # unNx s # newLabel  >-> \(((cc, b, d),ss),t) -> Nx (seq [LABEL t, cc, LABEL b, ss, JUMP (NAME t) [], LABEL d])
