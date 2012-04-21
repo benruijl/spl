@@ -33,6 +33,13 @@ infixl 6 !++!
   case a e of
     (c, e') -> b c e'
 
+-- modify last processed part
+infixl 6 !-+!
+(!-+!) :: M (a,b) m -> (b -> M c m) -> M (a,c) m
+(!-+!) a b e =
+  case a e of
+    ((c,d), e') -> (b d >-> \x -> (c, x)) e'
+
 iter :: (a -> M b m) -> [a] -> M [b] m
 iter f [] = yield []
 iter f (l:ls) = f l # iter f ls >-> (\(a,b) -> a:b)

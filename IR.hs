@@ -1,6 +1,6 @@
 module IR where
 
-import Prelude hiding (seq, EQ)
+import Prelude hiding (seq, EQ, LT, GT)
 import Data.Map as Map
 import qualified AST
 import Typing (Env)
@@ -8,7 +8,7 @@ import Combinators2
 
 type Label = String
 data BinOp = PLUS | MINUS | MUL | DIV | AND | OR | LSHIFT | RSHIFT | ARSHIFT | XOR deriving Show
-data RelOp = EQ | NE| LT | GT| LE | GE | ULT | ULE | UGT | UGE deriving Show
+data RelOp = EQ | NE| LT | GT| LE | GE | ULT | ULE | UGT | UGE deriving (Show, Eq)
 data Exp = CONST Int | NAME String | TEMP Label | BINOP BinOp Exp Exp | MEM Exp | CALL Exp [Exp] | ESEQ Stm Exp deriving Show
 -- TODO: what to do with the [Exp] in JUMP?
 data Stm = MOVE Exp Exp | EXP Exp | JUMP Exp [Exp] | CJUMP RelOp Exp Exp Label Label | SEQ Stm Stm | LABEL String deriving Show
@@ -69,33 +69,33 @@ instance Convert AST.Exp where
 	convert (AST.Bool True) = yield $ Ex $ CONST 1
 	convert (AST.Op1_ AST.UnitaryMinus a) = convert a !++! unEx >-> \k -> Ex $ BINOP MINUS (CONST 0) k
 	convert (AST.Op1_ AST.Negate a) = convert a !++! unEx >-> \k -> Ex $ BINOP XOR (CONST 1) k
+	convert (AST.ExpOp_ o a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(l,r) -> if elem (getOp rel) relOp then Cx (CJUMP (getOp rel) l r) else Ex (BINOP (getOp bin) l r)
+		where
+		relOp = [EQ, NE, LT, GT, LE, GE, ULT, ULE, UGT, UGE]
+		rel = [(AST.Equals, EQ), (AST.Less, LT), (AST.More, GT), (AST.LessEq, LE), (AST.MoreEq, GE), (AST.NotEq, NE)]
+		bin =	[(AST.Add, PLUS), (AST.Sub, MINUS), (AST.And, AND), (AST.Or, OR), (AST.Mul, MUL), (AST.Div, DIV)]
+		getOp m = case Prelude.lookup o m of
+			Just a -> a
+			Nothing -> error $ "Undefined operator"
+	
 	{-convert EmptyList =
 	convert (ExpOp_ AppCons a EmptyList) = 
 	convert (ExpOp_ AppCons a b) =
-	convert (ExpOp_ o a b) = 
+	convert (ExpOp_ Div a b)
 	convert (Tuple a b) = -}
 
 	-- TODO: only looks up local function, expand?
 	convert (AST.Id name) = yield $ Ex $ MEM (TEMP name)
 	--convert (AST.Id name) =  getVarLoc name >-> \k -> Ex $ MEM (BINOP PLUS (TEMP "fp") (CONST k))
 
--- TODO: add negate, and, or
-{-getCond (AST.Bool True) = (EQ, CONST 1, CONST 1)
-getCond (AST.Bool False) = (EQ, CONST 1, CONST 0)
-getCond (AST.ExpOp_ o x y) = (getOp o, convert x, convert y)
-	where
-	getOp = case lookup o m of
-		Just a -> a
-		Nothing -> error $ "Undefined operator"
-	m = [(AST.Equals, EQ), (AST.Less, LT), (AST.More, GT), (AST.LessEq, LE), (AST.MoreEq, GE), (AST.NotEq, NE)]-}
-
 instance Convert AST.Stmt where
-	convert (AST.If cond stmt) = convert cond !++! unCx # (convert stmt !++! (\(c,s) -> (unNx s) >-> (\x -> (c,x)))) # newLabel # newLabel >-> \(((c,s),t),f) -> Nx $ seq [c t f, LABEL t, s ,LABEL f]
+	convert (AST.If cond stmt) = convert cond !++! unCx # convert stmt !-+! unNx # newLabel # newLabel >-> \(((c,s),t),f) -> Nx $ seq [c t f, LABEL t, s ,LABEL f]
 --	convert (AST.IfElse cond stmt1 stmt2) = \((o, x, y) -> CJUMP o x y (convert stmt1) (convert stmt2)) (getCond cond)
 	convert (AST.While cond stmt) = convert cond # convert stmt !++! uncurry parseWhile
 		where
 		parseWhile c s = newLabel # newLabel !++! \(b,d) -> (unCx c >-> \x -> (x b d, b, d)) # unNx s # newLabel  >-> \(((cc, b, d),ss),t) -> Nx (seq [LABEL t, cc, LABEL b, ss, JUMP (NAME t) [], LABEL d])
---	convert (AST.Assign id exp) = \e -> Nx (MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) (unEx $ convert exp e))
+	convert (AST.Assign id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
+	--convert (AST.Assign id exp) = \e -> Nx (MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) (unEx $ convert exp e))
 	convert (AST.Seq stmt) = (iter (\x -> convert x !++! unNx) stmt) >-> \x -> Nx (seq x)
 {-	convert (AST.FunCall_ funCall) =
 	convert (AST.Return a) = -}
