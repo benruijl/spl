@@ -85,6 +85,7 @@ instance Convert AST.Exp where
 	convert (AST.Tuple a b) = -}
 
 	-- TODO: only looks up local function, expand?
+	-- FIXME: what to do with names that overlap?
 	convert (AST.Id name) = yield $ Ex $ MEM (TEMP name)
 	--convert (AST.Id name) =  getVarLoc name >-> \k -> Ex $ MEM (BINOP PLUS (TEMP "fp") (CONST k))
 
@@ -98,11 +99,17 @@ instance Convert AST.Stmt where
 	--convert (AST.Assign id exp) = \e -> Nx (MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) (unEx $ convert exp e))
 	convert (AST.Seq stmt) = (iter (\x -> convert x !++! unNx) stmt) >-> \x -> Nx (seq x)
 	convert (AST.FunCall_ (id, args)) = (iter (\x -> convert x !++! unEx) args) >-> \x -> Ex $ CALL (TEMP id) x
-	--convert (AST.Return a) =
+	-- TODO: add jump back to previous function
+	convert (AST.Return (Just a)) = convert a !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP "_res")) e -- store result in specific temporary
 
 instance Convert AST.VarDecl where
 	convert (AST.VD t id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
 --	convert (AST.VD t id exp) = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) e
 
+instance Convert AST.FunDecl where
+	-- TODO: put vars on stack
+	convert (AST.FD t id args var stmt) = (listConv var # convert stmt !-+! unNx) >-> \(v,s) -> Nx $ seq (LABEL id : v ++ [s])
+		where
+		listConv = iter (\x -> convert x !++! unNx)
 
 
