@@ -7,7 +7,7 @@ import Typing (Env)
 import Combinators2
 
 type Label = String
-data BinOp = PLUS | MINUS | MUL | DIV | AND | OR | LSHIFT | RSHIFT | ARSHIFT | XOR deriving Show
+data BinOp = PLUS | MINUS | MUL | DIV | AND | OR | MOD | LSHIFT | RSHIFT | ARSHIFT | XOR deriving Show
 data RelOp = EQ | NE| LT | GT| LE | GE | ULT | ULE | UGT | UGE deriving (Show, Eq)
 data Exp = CONST Int | NAME String | TEMP Label | BINOP BinOp Exp Exp | MEM Exp | CALL Exp [Exp] | ESEQ Stm Exp deriving Show
 -- TODO: what to do with the [Exp] in JUMP?
@@ -60,6 +60,9 @@ unCx (Nx s) = error $ "Cannot convert Nx to Cx"
 unCx (Ex e) = yield $ CJUMP EQ e (CONST 1)
 unCx (Cx c) = yield c
 
+convertProg :: AST.Prog -> (IR, Reg)
+convertProg p = (iter (\x -> convert x !++! unNx) p >-> (\x -> Nx (seq x))) (Reg 0 0 (Frame 0 Map.empty 0))
+
 class Convert a where
 	convert :: a -> F IR
 
@@ -73,7 +76,7 @@ instance Convert AST.Exp where
 		where
 		relOp = [EQ, NE, LT, GT, LE, GE, ULT, ULE, UGT, UGE]
 		rel = [(AST.Equals, EQ), (AST.Less, LT), (AST.More, GT), (AST.LessEq, LE), (AST.MoreEq, GE), (AST.NotEq, NE)]
-		bin =	[(AST.Add, PLUS), (AST.Sub, MINUS), (AST.And, AND), (AST.Or, OR), (AST.Mul, MUL), (AST.Div, DIV)]
+		bin =	[(AST.Add, PLUS), (AST.Sub, MINUS), (AST.And, AND), (AST.Or, OR), (AST.Mul, MUL), (AST.Div, DIV), (AST.Mod, MOD)]
 		getOp m = case Prelude.lookup o m of
 			Just a -> a
 			Nothing -> error $ "Undefined operator"
@@ -81,13 +84,12 @@ instance Convert AST.Exp where
 	{-convert AST.EmptyList =
 	convert (AST.ExpOp_ AST.AppCons a AST.EmptyList) = 
 	convert (AST.ExpOp_ AST.AppCons a b) =
-	convert (AST.ExpOp_ AST.Mod a b)
 	convert (AST.Tuple a b) = -}
 
 	-- TODO: only looks up local function, expand?
 	-- FIXME: what to do with names that overlap?
-	convert (AST.Id name) = yield $ Ex $ MEM (TEMP name)
-	--convert (AST.Id name) =  getVarLoc name >-> \k -> Ex $ MEM (BINOP PLUS (TEMP "fp") (CONST k))
+	--convert (AST.Id name) = yield $ Ex $ MEM (TEMP name)
+	convert (AST.Id name) =  getVarLoc name >-> \k -> Ex $ MEM (BINOP PLUS (TEMP "fp") (CONST k))
 
 instance Convert AST.Stmt where
 	convert (AST.If cond stmt) = convert cond !++! unCx # convert stmt !-+! unNx # newLabel # newLabel >-> \(((c,s),t),f) -> Nx $ seq [c t f, LABEL t, s ,LABEL f]
@@ -95,21 +97,26 @@ instance Convert AST.Stmt where
 	convert (AST.While cond stmt) = convert cond # convert stmt !++! uncurry parseWhile
 		where
 		parseWhile c s = newLabel # newLabel !++! \(b,d) -> (unCx c >-> \x -> (x b d, b, d)) # unNx s # newLabel  >-> \(((cc, b, d),ss),t) -> Nx (seq [LABEL t, cc, LABEL b, ss, JUMP (NAME t) [], LABEL d])
-	convert (AST.Assign id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
-	--convert (AST.Assign id exp) = \e -> Nx (MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) (unEx $ convert exp e))
+	--convert (AST.Assign id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
+	convert (AST.Assign id exp) = getVarLoc id # convert exp !-+! unEx >-> \(k,e) -> Nx (MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) e)
 	convert (AST.Seq stmt) = (iter (\x -> convert x !++! unNx) stmt) >-> \x -> Nx (seq x)
 	convert (AST.FunCall_ (id, args)) = (iter (\x -> convert x !++! unEx) args) >-> \x -> Ex $ CALL (TEMP id) x
 	-- TODO: add jump back to previous function
 	convert (AST.Return (Just a)) = convert a !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP "_res")) e -- store result in specific temporary
 
 instance Convert AST.VarDecl where
-	convert (AST.VD t id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
---	convert (AST.VD t id exp) = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) e
+--	convert (AST.VD t id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
+	convert (AST.VD t id exp) = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) e
 
+-- Arguments are added first on stack
+-- Function definitions are added next
 instance Convert AST.FunDecl where
 	-- TODO: put vars on stack
-	convert (AST.FD t id args var stmt) = (listConv var # convert stmt !-+! unNx) >-> \(v,s) -> Nx $ seq (LABEL id : v ++ [s])
+	convert (AST.FD t id args var stmt) = (iter (addVarToFrame . snd) args # listConv var # convert stmt !-+! unNx) >-> \((a,v),s) -> Nx $ seq (LABEL id : v ++ [s])
 		where
 		listConv = iter (\x -> convert x !++! unNx)
 
+instance Convert AST.Decl where
+	convert (AST.VarDecl v) = convert v
+	convert (AST.FunDecl f) = convert f
 

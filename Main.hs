@@ -7,6 +7,7 @@ import Scanner
 import Parser
 import AST
 import Typing
+import IR
 
 parseSuccess :: Maybe (a, [Token]) -> a
 parseSuccess (Just (x,[])) = x
@@ -24,6 +25,6 @@ main = do
    f <- readFile s
    let prog =  (parseSuccess . progParse. scanSuccess. lineScan) f
    mapM_ putStrLn $ prettyPrint prog
-   putStrLn $ showEnv $ progTypeCheck prog $ buildEnv prog 
+   putStrLn $ show $ convertProg prog -- $ progTypeCheck prog $ buildEnv prog 
 
 
