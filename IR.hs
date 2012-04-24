@@ -11,6 +11,7 @@ data BinOp = PLUS | MINUS | MUL | DIV | AND | OR | MOD | LSHIFT | RSHIFT | ARSHI
 data RelOp = EQ | NE| LT | GT| LE | GE | ULT | ULE | UGT | UGE deriving (Show, Eq)
 data Exp = CONST Int | NAME String | TEMP Label | BINOP BinOp Exp Exp | MEM Exp | CALL Exp [Exp] | ESEQ Stm Exp deriving Show
 -- TODO: what to do with the [Exp] in JUMP?
+-- Use CALL only for external functions
 data Stm = MOVE Exp Exp | EXP Exp | JUMP Exp [Exp] | CJUMP RelOp Exp Exp Label Label | SEQ Stm Stm | LABEL String deriving Show
 data IR = Ex Exp | Nx Stm | Cx (Label -> Label -> Stm)
 
@@ -19,7 +20,7 @@ instance Show IR where
 	show (Nx s) = show s
 	show (Cx f) = error "FAIL" -- FIXME: cannot show function 
 
-data Frame = Frame {curPos :: Int, varMap :: Map Label Int, wordSize :: Int} deriving Show
+data Frame = Frame {curPos :: Int, varMap :: Map Label Int, body :: IR} deriving Show
 data Reg = Reg { labelCount :: Int, regCount :: Int, curFrame :: Frame} deriving Show
 type F a = M a Reg
 
@@ -38,6 +39,9 @@ getVarLoc l r@(Reg {curFrame=f}) = case f of
 	(Frame {varMap=m} ) -> case Map.lookup l m of
 		Just x -> yield x r
 		Nothing -> error $ "Error: location of variable " ++ l ++ " not found in map"
+
+addBody :: IR -> F IR
+addBody b r@(Reg {curFrame=f}) = (b, r{curFrame=f{body=b}})
 
 -- make a sequence from list
 seq :: [Stm] -> Stm
@@ -61,7 +65,7 @@ unCx (Ex e) = yield $ CJUMP EQ e (CONST 1)
 unCx (Cx c) = yield c
 
 convertProg :: AST.Prog -> (IR, Reg)
-convertProg p = (iter (\x -> convert x !++! unNx) p >-> (\x -> Nx (seq x))) (Reg 0 0 (Frame 0 Map.empty 0))
+convertProg p = (iter (\x -> convert x !++! unNx) p >-> (\x -> Nx (seq x))) (Reg 0 0 (Frame 0 Map.empty (Ex(CONST 0))))
 
 class Convert a where
 	convert :: a -> F IR
@@ -111,8 +115,7 @@ instance Convert AST.VarDecl where
 -- Arguments are added first on stack
 -- Function definitions are added next
 instance Convert AST.FunDecl where
-	-- TODO: put vars on stack
-	convert (AST.FD t id args var stmt) = (iter (addVarToFrame . snd) args # listConv var # convert stmt !-+! unNx) >-> \((a,v),s) -> Nx $ seq (LABEL id : v ++ [s])
+	convert (AST.FD t id args var stmt) = ((iter (addVarToFrame . snd) args # listConv var # convert stmt !-+! unNx) >-> (\((a,v),s) -> Nx $ seq ([LABEL id] ++ v ++ [s]))) !++! addBody
 		where
 		listConv = iter (\x -> convert x !++! unNx)
 
