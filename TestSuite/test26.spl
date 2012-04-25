@@ -1,3 +1,4 @@
-void test(int a) {
+int test(int a) {
 	a = 5;
+	return 3;
 }

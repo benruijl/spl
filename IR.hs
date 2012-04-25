@@ -11,7 +11,6 @@ data BinOp = PLUS | MINUS | MUL | DIV | AND | OR | MOD | LSHIFT | RSHIFT | ARSHI
 data RelOp = EQ | NE| LT | GT| LE | GE | ULT | ULE | UGT | UGE deriving (Show, Eq)
 data Exp = CONST Int | NAME String | TEMP Label | BINOP BinOp Exp Exp | MEM Exp | CALL Exp [Exp] | ESEQ Stm Exp deriving Show
 -- TODO: what to do with the [Exp] in JUMP?
--- Use CALL only for external functions
 data Stm = MOVE Exp Exp | EXP Exp | JUMP Exp [Exp] | CJUMP RelOp Exp Exp Label Label | SEQ Stm Stm | LABEL String deriving Show
 data IR = Ex Exp | Nx Stm | Cx (Label -> Label -> Stm)
 
@@ -20,8 +19,8 @@ instance Show IR where
 	show (Nx s) = show s
 	show (Cx f) = error "FAIL" -- FIXME: cannot show function 
 
-data Frame = Frame {curPos :: Int, varMap :: Map Label Int, body :: IR} deriving Show
-data Reg = Reg { labelCount :: Int, regCount :: Int, curFrame :: Frame} deriving Show
+data Frame = Frame {curPos :: Int, id :: String, varMap :: Map Label Int, body :: IR} deriving Show
+data Reg = Reg { labelCount :: Int, regCount :: Int, curFrame :: Frame, frameList :: Map Label Frame} deriving Show
 type F a = M a Reg
 
 newLabel :: F Label
@@ -42,6 +41,16 @@ getVarLoc l r@(Reg {curFrame=f}) = case f of
 
 addBody :: IR -> F IR
 addBody b r@(Reg {curFrame=f}) = (b, r{curFrame=f{body=b}})
+
+newFrame :: String -> F String
+newFrame s r@(Reg {curFrame=f}) = (s, r{curFrame=(Frame 0 s Map.empty (Ex $ CONST 0))})
+
+storeFrame :: String -> F Frame
+storeFrame s r@(Reg {curFrame=f, frameList=fl}) = (f, r{frameList=Map.insert s f fl})
+
+getFunctionName :: F String
+getFunctionName r@(Reg {curFrame=f}) = case f of
+	(Frame {IR.id=s}) -> (s, r)
 
 -- make a sequence from list
 seq :: [Stm] -> Stm
@@ -64,8 +73,8 @@ unCx (Nx s) = error $ "Cannot convert Nx to Cx"
 unCx (Ex e) = yield $ CJUMP EQ e (CONST 1)
 unCx (Cx c) = yield c
 
-convertProg :: AST.Prog -> (IR, Reg)
-convertProg p = (iter (\x -> convert x !++! unNx) p >-> (\x -> Nx (seq x))) (Reg 0 0 (Frame 0 Map.empty (Ex(CONST 0))))
+convertProg :: AST.Prog -> Reg
+convertProg p = snd $ (iter (\x -> convert x !++! unNx) p >-> (\x -> Nx (seq x))) (Reg 0 0 (Frame 0 "" Map.empty (Ex(CONST 0))) Map.empty)
 
 class Convert a where
 	convert :: a -> F IR
@@ -105,8 +114,7 @@ instance Convert AST.Stmt where
 	convert (AST.Assign id exp) = getVarLoc id # convert exp !-+! unEx >-> \(k,e) -> Nx (MOVE (MEM (BINOP PLUS (TEMP "fp") (CONST k))) e)
 	convert (AST.Seq stmt) = (iter (\x -> convert x !++! unNx) stmt) >-> \x -> Nx (seq x)
 	convert (AST.FunCall_ (id, args)) = (iter (\x -> convert x !++! unEx) args) >-> \x -> Ex $ CALL (TEMP id) x
-	-- TODO: add jump back to previous function
-	convert (AST.Return (Just a)) = convert a !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP "_res")) e -- store result in specific temporary
+	convert (AST.Return (Just a)) = convert a !++! unEx # getFunctionName >-> \(e,n) -> Nx $ SEQ(MOVE (MEM (TEMP "_res")) e) (JUMP (NAME (n++"_end")) []) -- store result in specific temporary
 
 instance Convert AST.VarDecl where
 --	convert (AST.VD t id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
@@ -115,7 +123,7 @@ instance Convert AST.VarDecl where
 -- Arguments are added first on stack
 -- Function definitions are added next
 instance Convert AST.FunDecl where
-	convert (AST.FD t id args var stmt) = ((iter (addVarToFrame . snd) args # listConv var # convert stmt !-+! unNx) >-> (\((a,v),s) -> Nx $ seq ([LABEL id] ++ v ++ [s]))) !++! addBody
+	convert (AST.FD t id args var stmt) = newFrame id >>| ((iter (addVarToFrame . snd) args # listConv var # convert stmt !-+! unNx) >-> (\((a,v),s) -> Nx $ seq ([LABEL id] ++ v ++ [s] ++ [LABEL (id ++"_end")]))) !++! addBody >>- storeFrame id
 		where
 		listConv = iter (\x -> convert x !++! unNx)
 
