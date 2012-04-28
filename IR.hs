@@ -7,7 +7,7 @@ import Typing (Env)
 import Combinators2
 
 type Label = String
-data BinOp = PLUS | MINUS | MUL | DIV | AND | OR | MOD | LSHIFT | RSHIFT | ARSHIFT | XOR deriving Show
+data BinOp = PLUS | MINUS | MUL | DIV | AND | OR | MOD | LSHIFT | RSHIFT | ARSHIFT | XOR deriving (Show, Eq)
 data RelOp = EQ | NE| LT | GT| LE | GE | ULT | ULE | UGT | UGE deriving (Show, Eq)
 data Exp = CONST Int | NAME String | TEMP Label | BINOP BinOp Exp Exp | MEM Exp | CALL Exp [Exp] | ESEQ Stm Exp deriving Show
 -- TODO: what to do with the [Exp] in JUMP?
@@ -85,6 +85,8 @@ instance Convert AST.Exp where
 	convert (AST.Bool True) = yield $ Ex $ CONST 1
 	convert (AST.Op1_ AST.UnitaryMinus a) = convert a !++! unEx >-> \k -> Ex $ BINOP MINUS (CONST 0) k
 	convert (AST.Op1_ AST.Negate a) = convert a !++! unEx >-> \k -> Ex $ BINOP XOR (CONST 1) k
+
+	--FIXME: check if arguments are function calls. If they are, extract	
 	convert (AST.ExpOp_ o a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(l,r) -> if elem (getOp rel) relOp then Cx (CJUMP (getOp rel) l r) else Ex (BINOP (getOp bin) l r)
 		where
 		relOp = [EQ, NE, LT, GT, LE, GE, ULT, ULE, UGT, UGE]
