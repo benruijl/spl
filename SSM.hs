@@ -16,8 +16,11 @@ instance Assemble Exp where
 		op o = case lookup o conv of
 			Just c -> c 
 		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "mul"), (DIV, "div"), (MOD, "mod")]
+	assemble (CALL e a) = assemble e
 	
 instance Assemble Stm where
+	-- FIXME: can only move local vars
+	assemble (MOVE (CONST v) b) = assemble b ++ ["stl " ++ show v]
 	assemble (EXP e) = assemble e
 	assemble (LABEL l) = [l ++ ":"]
 	assemble (SEQ a b) = assemble a ++ assemble b
@@ -26,6 +29,7 @@ instance Assemble Stm where
 		op o = case lookup o rel of
 			Just c -> c 
 		rel = [(EQ, "eq"), (LT, "lt"), (GT, "gt"), (LE, "le"), (GE, "ge"), (NE, "ne")]
+	assemble (CALL id args) = map assemble args ++ ["bsr " ++ id]
 
 instance Assemble IR where
 	assemble (Ex e) = assemble e
