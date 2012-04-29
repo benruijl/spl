@@ -105,7 +105,8 @@ instance Convert AST.Exp where
 	-- FIXME: what to do with names that overlap?
 	--convert (AST.Id name) = yield $ Ex $ MEM (TEMP name)
 	-- FIXME: always relative to MP
-	convert (AST.Id name) =  getVarLoc name >-> \k -> Ex $ MEM ((CONST k)) --BINOP PLUS (TEMP "fp") 
+	convert (AST.Id name) =  getVarLoc name >-> \k -> Ex $ MEM ((CONST k)) -- (BINOP PLUS (TEMP "fp")
+	convert (AST.FunCall (id, args)) = convert (AST.FunCall_ (id, args))
 
 instance Convert AST.Stmt where
 	convert (AST.If cond stmt) = convert cond !++! unCx # convert stmt !-+! unNx # newLabel # newLabel >-> \(((c,s),t),f) -> Nx $ seq [c t f, LABEL t, s ,LABEL f]
@@ -114,14 +115,14 @@ instance Convert AST.Stmt where
 		where
 		parseWhile c s = newLabel # newLabel !++! \(b,d) -> (unCx c >-> \x -> (x b d, b, d)) # unNx s # newLabel  >-> \(((cc, b, d),ss),t) -> Nx (seq [LABEL t, cc, LABEL b, ss, JUMP (NAME t) [], LABEL d])
 	--convert (AST.Assign id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
-	convert (AST.Assign id exp) = getVarLoc id # convert exp !-+! unEx >-> \(k,e) -> Nx (MOVE (MEM ((CONST k)) e) -- BINOP PLUS (TEMP "fp")
+	convert (AST.Assign id exp) = getVarLoc id # convert exp !-+! unEx >-> \(k,e) -> Nx (MOVE (MEM (CONST k)) e) -- (BINOP PLUS (TEMP "fp")
 	convert (AST.Seq stmt) = (iter (\x -> convert x !++! unNx) stmt) >-> \x -> Nx (seq x)
 	convert (AST.FunCall_ (id, args)) = (iter (\x -> convert x !++! unEx) args) >-> \x -> Ex $ CALL (TEMP id) x
 	convert (AST.Return (Just a)) = convert a !++! unEx # getFunctionName >-> \(e,n) -> Nx $ SEQ(MOVE (MEM (TEMP "_res")) e) (JUMP (NAME (n++"_end")) []) -- store result in specific temporary
 
 instance Convert AST.VarDecl where
 --	convert (AST.VD t id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
-	convert (AST.VD t id exp) = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE ((CONST k)) e -- MEM (BINOP PLUS (TEMP "fp") )
+	convert (AST.VD t id exp) = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE (MEM (CONST k)) e -- (BINOP PLUS (TEMP "fp") )
 
 -- Arguments are added first on stack
 -- Function definitions are added next
