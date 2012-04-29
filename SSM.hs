@@ -9,9 +9,9 @@ class Assemble a where
 
 instance Assemble Exp where
 	assemble (CONST a) = ["ldc " ++ show a]
-	assemble (NAME s) = [s]
-	assemble (TEMP l) = [l]
-	assemble (MEM e) = assemble e ++ [] -- FIXME: do something else?
+	assemble (NAME s) = [s] -- FIXME
+	assemble (TEMP l) = [l] -- FIXME
+	assemble (MEM (CONST a)) = ["ldl " ++ show a]  -- FIXME: do something else?
 	assemble (BINOP o a b) = assemble a ++ assemble b ++ [op o]
 		where
 		op o = case lookup o conv of

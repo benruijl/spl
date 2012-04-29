@@ -1,8 +1,7 @@
 void test(int a) {
-	a = 5;
-	return 3;
+	return a + 1;
 }
 
 void main() {
-	print(test());
+	print(test(2));
 }

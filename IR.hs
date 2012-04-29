@@ -87,14 +87,15 @@ instance Convert AST.Exp where
 	convert (AST.Op1_ AST.Negate a) = convert a !++! unEx >-> \k -> Ex $ BINOP XOR (CONST 1) k
 
 	--FIXME: check if arguments are function calls. If they are, extract	
-	convert (AST.ExpOp_ o a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(l,r) -> if elem (getOp rel) relOp then Cx (CJUMP (getOp rel) l r) else Ex (BINOP (getOp bin) l r)
+	convert (AST.ExpOp_ o a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(l,r) -> if elem o relOp then Cx (CJUMP (getOp rel) l r) else Ex (BINOP (getOp bin) l r)
 		where
-		relOp = [EQ, NE, LT, GT, LE, GE, ULT, ULE, UGT, UGE]
+--		relOp = [EQ, NE, LT, GT, LE, GE, ULT, ULE, UGT, UGE]
+		relOp = [AST.Equals, AST.Less, AST.More, AST.LessEq, AST.MoreEq, AST.NotEq]
 		rel = [(AST.Equals, EQ), (AST.Less, LT), (AST.More, GT), (AST.LessEq, LE), (AST.MoreEq, GE), (AST.NotEq, NE)]
 		bin =	[(AST.Add, PLUS), (AST.Sub, MINUS), (AST.And, AND), (AST.Or, OR), (AST.Mul, MUL), (AST.Div, DIV), (AST.Mod, MOD)]
 		getOp m = case Prelude.lookup o m of
 			Just a -> a
-			Nothing -> error $ "Undefined operator"
+			Nothing -> error $ "Undefined operator " ++ show o
 	
 	{-convert AST.EmptyList =
 	convert (AST.ExpOp_ AST.AppCons a AST.EmptyList) = 
