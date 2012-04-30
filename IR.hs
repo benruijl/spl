@@ -19,7 +19,7 @@ instance Show IR where
 	show (Nx s) = show s
 	show (Cx f) = error "FAIL" -- FIXME: cannot show function 
 
-data Frame = Frame {curPos :: Int, id :: String, varMap :: Map Label Int, body :: IR} deriving Show
+data Frame = Frame {curPos :: Int, curArgPos :: Int, id :: String, varMap :: Map Label Int, body :: IR} deriving Show
 data Reg = Reg { labelCount :: Int, regCount :: Int, curFrame :: Frame, frameList :: Map Label Frame} deriving Show
 type F a = M a Reg
 
@@ -31,8 +31,14 @@ newReg r@(Reg {regCount=l}) = ("l" ++ show l, r{regCount=l+1})
 
 addVarToFrame :: Label -> F Int
 addVarToFrame l r@(Reg {curFrame=f}) = case f of
-	(Frame {curPos=p,varMap=m} ) -> (p, r{curFrame=f{curPos=p+1, varMap= Map.insert l p m}})
+	(Frame {curPos=p,varMap=m} ) -> (p, r{curFrame=f{curPos=p + 1, varMap= Map.insert l p m}})
+	
+-- FIXME: partially move to SSM
+addArgToFrame :: Label -> F Int
+addArgToFrame l r@(Reg {curFrame=f}) = case f of
+	(Frame {curArgPos=p,varMap=m} ) -> (p, r{curFrame=f{curArgPos= p - 1, varMap= Map.insert l p m}})
 
+-- TODO: move to SSM
 getVarLoc :: Label -> F Int
 getVarLoc l r@(Reg {curFrame=f}) = case f of
 	(Frame {varMap=m} ) -> case Map.lookup l m of
@@ -43,7 +49,7 @@ addBody :: IR -> F IR
 addBody b r@(Reg {curFrame=f}) = (b, r{curFrame=f{body=b}})
 
 newFrame :: String -> F String
-newFrame s r@(Reg {curFrame=f}) = (s, r{curFrame=(Frame 0 s Map.empty (Ex $ CONST 0))})
+newFrame s r@(Reg {curFrame=f}) = (s, r{curFrame=(Frame 1 (-2) s Map.empty (Ex $ CONST 0))})
 
 storeFrame :: String -> F Frame
 storeFrame s r@(Reg {curFrame=f, frameList=fl}) = (f, r{frameList=Map.insert s f fl})
@@ -74,7 +80,7 @@ unCx (Ex e) = yield $ CJUMP EQ e (CONST 1)
 unCx (Cx c) = yield c
 
 convertProg :: AST.Prog -> Reg
-convertProg p = snd $ (iter (\x -> convert x !++! unNx) p >-> (\x -> Nx (seq x))) (Reg 0 0 (Frame 0 "" Map.empty (Ex(CONST 0))) Map.empty)
+convertProg p = snd $ (iter (\x -> convert x !++! unNx) p >-> (\x -> Nx (seq x))) (Reg 0 0 (Frame 1 (-2) "" Map.empty (Ex(CONST 0))) Map.empty)
 
 class Convert a where
 	convert :: a -> F IR
@@ -128,7 +134,7 @@ instance Convert AST.VarDecl where
 -- Arguments are added first on stack
 -- Function definitions are added next
 instance Convert AST.FunDecl where
-	convert (AST.FD t id args var stmt) = newFrame id >>| ((iter (addVarToFrame . snd) args # listConv var # convert stmt !-+! unNx) >-> (\((a,v),s) -> Nx $ seq ([LABEL id] ++ v ++ [s] ++ [LABEL (id ++"_end")]))) !++! addBody >>- storeFrame id
+	convert (AST.FD t id args var stmt) = newFrame id >>| ((iter (addArgToFrame . snd) args # listConv var # convert stmt !-+! unNx) >-> (\((a,v),s) -> Nx $ seq (v ++ [s] ++ [LABEL (id ++"_end")]))) !++! addBody >>- storeFrame id
 		where
 		listConv = iter (\x -> convert x !++! unNx)
 

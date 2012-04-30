@@ -19,7 +19,7 @@ instance Assemble Exp where
 		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "mul"), (DIV, "div"), (MOD, "mod")]
 		
 	assemble (CALL (TEMP "print") args) = assemble (head args )++ ["trap 0"] -- hardcoded print function
-	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["bsr " ++ id] ++ ["ldr RR"]
+	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["ldc " ++ id] ++ ["jsr"] ++ ["ldr RR"]
 	
 instance Assemble Stm where
 	-- FIXME: can only move local vars
@@ -37,10 +37,10 @@ instance Assemble Stm where
 		rel = [(EQ, "eq"), (LT, "lt"), (GT, "gt"), (LE, "le"), (GE, "ge"), (NE, "ne")]
 	
 instance Assemble Frame where
-	assemble (Frame {curPos=c, IR.id=i, varMap=v, body=b}) = assemble b ++ ["ret"]
+	assemble (Frame {curPos=c, IR.id=i, varMap=v, body=b}) = [i ++ ": "] ++ ["ldr MP"] ++ ["ldrr MP SP"] ++ assemble b ++ ["ldrr SP MP"] ++ ["str MP"] ++ ["ret"]
 	
 instance Assemble Reg where
-	assemble (Reg { frameList=f}) = concat (map assemble (Map.elems f))
+	assemble (Reg { frameList=f}) = ["bra main"] ++ concat (map assemble (Map.elems f))
 
 instance Assemble IR where
 	assemble (Ex e) = assemble e
