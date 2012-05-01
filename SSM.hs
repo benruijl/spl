@@ -18,8 +18,8 @@ instance Assemble Exp where
 			Just c -> c 
 		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "mul"), (DIV, "div"), (MOD, "mod")]
 		
-	assemble (CALL (TEMP "print") args) = assemble (head args )++ ["trap 0"] -- hardcoded print function
-	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["ldc " ++ id] ++ ["jsr"] ++ ["ldr RR"]
+	assemble (CALL (TEMP "print") args) = assemble (head args )++ ["trap 0"] -- hardcoded print function, TODO: add ajs?
+	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["ldc " ++ id] ++ ["jsr"] ++ ["ajs -" ++ show (length args)] ++["ldr RR"]
 	
 instance Assemble Stm where
 	-- FIXME: can only move local vars
@@ -30,14 +30,17 @@ instance Assemble Stm where
 	assemble (LABEL l) = [l ++ ":"]
 	assemble (SEQ a b) = assemble a ++ assemble b
 	assemble (JUMP (NAME l) _) = ["bra " ++ l] -- FIXME: correct?
-	assemble (CJUMP o a b t f) = assemble a ++ assemble b ++ [op o] ++ ["brf " ++ f] ++ ["brt " ++ t]
+	-- corrects for consumption of the brf
+	assemble (CJUMP o a b t f) = assemble a ++ assemble b ++ [op o] ++ ["brf " ++ f] ++ ["ldc 1"] ++ ["brt " ++ t]
 		where
 		op o = case lookup o rel of
 			Just c -> c 
 		rel = [(EQ, "eq"), (LT, "lt"), (GT, "gt"), (LE, "le"), (GE, "ge"), (NE, "ne")]
 	
 instance Assemble Frame where
-	assemble (Frame {curPos=c, IR.id=i, varMap=v, body=b}) = [i ++ ": "] ++ ["ldr MP"] ++ ["ldrr MP SP"] ++ assemble b ++ ["ldrr SP MP"] ++ ["str MP"] ++ ["ret"]
+	assemble (Frame {curArgPos=c, IR.id=i, varMap=v, body=b}) = [i ++ ": "] ++ ["ldr MP"] ++ ["ldrr MP SP"] ++ assemble b ++ ["ldrr SP MP"] ++ ["str MP"] ++ lastOp
+		where
+		lastOp = if i == "main" then ["halt"] else ["ret"]
 	
 instance Assemble Reg where
 	assemble (Reg { frameList=f}) = ["bra main"] ++ concat (map assemble (Map.elems f))
