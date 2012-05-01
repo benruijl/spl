@@ -93,22 +93,19 @@ instance Convert AST.Exp where
 	convert (AST.Op1_ AST.UnitaryMinus a) = convert a !++! unEx >-> \k -> Ex $ BINOP MINUS (CONST 0) k
 	convert (AST.Op1_ AST.Negate a) = convert a !++! unEx >-> \k -> Ex $ BINOP XOR (CONST 1) k
 
+	convert AST.EmptyList = yield $ Ex $ CALL (TEMP "alloc") [CONST 0, CONST 0]
+	convert (AST.ExpOp_ AST.AppCons a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(x,y) -> Ex $ CALL (TEMP "alloc") [x, y]
+
 	--FIXME: check if arguments are function calls. If they are, extract	
 	convert (AST.ExpOp_ o a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(l,r) -> if elem o relOp then Cx (CJUMP (getOp rel) l r) else Ex (BINOP (getOp bin) l r)
 		where
---		relOp = [EQ, NE, LT, GT, LE, GE, ULT, ULE, UGT, UGE]
 		relOp = [AST.Equals, AST.Less, AST.More, AST.LessEq, AST.MoreEq, AST.NotEq]
 		rel = [(AST.Equals, EQ), (AST.Less, LT), (AST.More, GT), (AST.LessEq, LE), (AST.MoreEq, GE), (AST.NotEq, NE)]
 		bin =	[(AST.Add, PLUS), (AST.Sub, MINUS), (AST.And, AND), (AST.Or, OR), (AST.Mul, MUL), (AST.Div, DIV), (AST.Mod, MOD)]
 		getOp m = case Prelude.lookup o m of
 			Just a -> a
 			Nothing -> error $ "Undefined operator " ++ show o
-	
-	convert AST.EmptyList = yield $ Ex $ CALL (TEMP "alloc") [CONST 0, CONST 0]
-	--convert AST.EmptyList = newReg >-> \r -> Ex $ ESEQ (seq [MOVE (MEM (TEMP r)) (CONST 0), MOVE (BINOP PLUS (MEM (TEMP r)) (CONST 1)) (CONST 0)]) (TEMP r)
-	{-convert (AST.ExpOp_ AST.AppCons a AST.EmptyList) = 
-	convert (AST.ExpOp_ AST.AppCons a b) =
-	convert (AST.Tuple a b) = -}
+	--convert (AST.Tuple a b) =
 
 	-- TODO: only looks up local function, expand?
 	-- FIXME: what to do with names that overlap?
