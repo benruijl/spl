@@ -60,6 +60,7 @@ getFunctionName r@(Reg {curFrame=f}) = case f of
 
 -- make a sequence from list
 seq :: [Stm] -> Stm
+seq [] = error "Empty sequence"
 seq [x] = x
 seq (x:xs) = SEQ x (seq xs)
 
@@ -103,8 +104,9 @@ instance Convert AST.Exp where
 			Just a -> a
 			Nothing -> error $ "Undefined operator " ++ show o
 	
-	{-convert AST.EmptyList =
-	convert (AST.ExpOp_ AST.AppCons a AST.EmptyList) = 
+	convert AST.EmptyList = yield $ Ex $ CALL (TEMP "alloc") [CONST 0, CONST 0]
+	--convert AST.EmptyList = newReg >-> \r -> Ex $ ESEQ (seq [MOVE (MEM (TEMP r)) (CONST 0), MOVE (BINOP PLUS (MEM (TEMP r)) (CONST 1)) (CONST 0)]) (TEMP r)
+	{-convert (AST.ExpOp_ AST.AppCons a AST.EmptyList) = 
 	convert (AST.ExpOp_ AST.AppCons a b) =
 	convert (AST.Tuple a b) = -}
 

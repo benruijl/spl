@@ -18,7 +18,8 @@ instance Assemble Exp where
 			Just c -> c 
 		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "mul"), (DIV, "div"), (MOD, "mod")]
 		
-	assemble (CALL (TEMP "print") args) = assemble (head args )++ ["trap 0"] -- hardcoded print function, TODO: add ajs?
+	assemble (CALL (TEMP "alloc") args) = concatMap assemble args ++ ["stmh " ++ show (length args)] ++ ["ldc " ++ show (length args - 1)] ++ ["sub"]
+	assemble (CALL (TEMP "print") args) = assemble (head args)++ ["trap 0"] -- hardcoded print function, TODO: add ajs?
 	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["ldc " ++ id] ++ ["jsr"] ++ ["ajs -" ++ show (length args)] ++["ldr RR"]
 	
 instance Assemble Stm where
