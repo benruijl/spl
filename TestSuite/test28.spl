@@ -1,4 +1,4 @@
 void main() {
-	[int] a = 5 : [];
-	print(a);
+	[int] a = 6 : 5 : [];
+	print(head(tail(a)));
 }
