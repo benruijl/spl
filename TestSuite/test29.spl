@@ -1,0 +1,22 @@
+void printListWhile([t] a) {
+	[t] b = a;
+	
+	while (!empty(b)) {
+		print(head(b));
+		b = tail(b);
+	}
+}
+
+
+void printListRec([t] a) {
+	if (!empty(a)) {
+		print(head(a));
+		printListRec(tail(a));
+	}
+}
+
+void main() {
+	[int] b = 6 : 5 : [];
+	printListRec(b);
+	printListWhile(b);
+}

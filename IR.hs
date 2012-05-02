@@ -133,7 +133,7 @@ instance Convert AST.VarDecl where
 -- Arguments are added first on stack
 -- Function definitions are added next
 instance Convert AST.FunDecl where
-	convert (AST.FD t id args var stmt) = newFrame id >>| ((iter (addArgToFrame . snd) args # listConv var # convert stmt !-+! unNx) >-> (\((a,v),s) -> Nx $ seq (v ++ [s] ++ [LABEL (id ++"_end")]))) !++! addBody >>- storeFrame id
+	convert (AST.FD t id args var stmt) = newFrame id >>| ((iter (addArgToFrame . snd) (reverse args) # listConv var # convert stmt !-+! unNx) >-> (\((a,v),s) -> Nx $ seq (v ++ [s] ++ [LABEL (id ++"_end")]))) !++! addBody >>- storeFrame id
 		where
 		listConv = iter (\x -> convert x !++! unNx)
 
