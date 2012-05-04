@@ -33,12 +33,12 @@ addVarToFrame :: Label -> F Int
 addVarToFrame l r@(Reg {curFrame=f}) = case f of
 	(Frame {curPos=p,varMap=m} ) -> (p, r{curFrame=f{curPos=p + 1, varMap= Map.insert l p m}})
 	
--- FIXME: partially move to SSM
+-- FIXME: partially move to SSM?
 addArgToFrame :: Label -> F Int
 addArgToFrame l r@(Reg {curFrame=f}) = case f of
 	(Frame {curArgPos=p,varMap=m} ) -> (p, r{curFrame=f{curArgPos= p - 1, varMap= Map.insert l p m}})
 
--- TODO: move to SSM
+-- TODO: move to SSM?
 getVarLoc :: Label -> F Int
 getVarLoc l r@(Reg {curFrame=f}) = case f of
 	(Frame {varMap=m} ) -> case Map.lookup l m of
@@ -95,8 +95,6 @@ instance Convert AST.Exp where
 
 	convert AST.EmptyList = yield $ Ex $ CALL (TEMP "alloc") [CONST 0, CONST 0]
 	convert (AST.ExpOp_ AST.AppCons a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(x,y) -> Ex $ CALL (TEMP "alloc") [x, y]
-
-	--FIXME: check if arguments are function calls. If they are, extract	
 	convert (AST.ExpOp_ o a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(l,r) -> if elem o relOp then Cx (CJUMP (getOp rel) l r) else Ex (BINOP (getOp bin) l r)
 		where
 		relOp = [AST.Equals, AST.Less, AST.More, AST.LessEq, AST.MoreEq, AST.NotEq]
@@ -107,9 +105,7 @@ instance Convert AST.Exp where
 			Nothing -> error $ "Undefined operator " ++ show o
 	convert (AST.Tuple a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(x,y) -> Ex $ CALL (TEMP "alloc") [x, y]
 
-	-- TODO: only looks up local function, expand?
 	-- FIXME: what to do with names that overlap?
-	--convert (AST.Id name) = yield $ Ex $ MEM (TEMP name)
 	-- FIXME: always relative to MP
 	convert (AST.Id name) =  getVarLoc name >-> \k -> Ex $ MEM ((CONST k)) -- (BINOP PLUS (TEMP "fp")
 	convert (AST.FunCall (id, args)) = convert (AST.FunCall_ (id, args))
@@ -126,8 +122,8 @@ instance Convert AST.Stmt where
 	convert (AST.FunCall_ (id, args)) = (iter (\x -> convert x !++! unEx) args) >-> \x -> Ex $ CALL (TEMP id) x
 	convert (AST.Return (Just a)) = convert a !++! unEx # getFunctionName >-> \(e,n) -> Nx $ SEQ(MOVE (MEM (TEMP "_res")) e) (JUMP (NAME (n++"_end")) []) -- store result in specific temporary
 
+-- TODO: what to do with global variables?
 instance Convert AST.VarDecl where
---	convert (AST.VD t id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
 	convert (AST.VD t id exp) = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE (MEM (CONST k)) e -- (BINOP PLUS (TEMP "fp") )
 
 -- Arguments are added first on stack

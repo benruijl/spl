@@ -28,9 +28,8 @@ instance Assemble Exp where
 	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["ldc " ++ id, "jsr", "ajs -" ++ show (length args), "ldr RR"]
 	
 instance Assemble Stm where
-	-- FIXME: can only move local vars
+	-- FIXME: can only move local vars, no support for temporaries
 	assemble (MOVE (MEM (TEMP "_res")) e) = assemble e ++ ["str RR"]
---	assemble (MOVE (MEM (CONST v)) (CALL _ _)) = ["ldr RR"]
 	assemble (MOVE (MEM (CONST v)) b) = assemble b ++ ["stl " ++ show v]
 	assemble (EXP e) = assemble e
 	assemble (LABEL l) = [l ++ ":"]
