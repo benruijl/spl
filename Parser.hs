@@ -104,7 +104,7 @@ factorParse = fcParse ! boolParse ! tupleParse ! op1Parse ! (idScan >-> (\x -> I
   op1Parse = op1 # factorParse >-> (\(o, x) -> Op1_ o x) -- only accepts factors
     
 
-stmtParse = (funCallParse  >>- (match ";") >-> (\x -> FunCall_ x)) ! curlyParse ! ifElseParse ! returnParse ! assignParse ! whileParse
+stmtParse = returnParse ! ifElseParse ! (funCallParse  >>- (match ";") >-> (\x -> FunCall_ x)) ! curlyParse ! assignParse ! whileParse
 
 curlyParse = match "{" >>| iter stmtParse >>- match "}" >-> (\x -> Seq x)
 

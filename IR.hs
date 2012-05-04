@@ -105,7 +105,7 @@ instance Convert AST.Exp where
 		getOp m = case Prelude.lookup o m of
 			Just a -> a
 			Nothing -> error $ "Undefined operator " ++ show o
-	--convert (AST.Tuple a b) =
+	convert (AST.Tuple a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(x,y) -> Ex $ CALL (TEMP "alloc") [x, y]
 
 	-- TODO: only looks up local function, expand?
 	-- FIXME: what to do with names that overlap?

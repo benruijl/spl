@@ -1,0 +1,7 @@
+void main() {
+	(int, bool) a = (2+5, !true);
+	
+	print(a); // print pointer
+	print(fst(a));
+	print(snd(a));
+}
