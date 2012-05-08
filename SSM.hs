@@ -42,6 +42,11 @@ instance Assemble Stm where
 		op o = case lookup o rel of
 			Just c -> c 
 		rel = [(EQ, "eq"), (LT, "lt"), (GT, "gt"), (LE, "le"), (GE, "ge"), (NE, "ne")]
+
+instance Assemble Global where
+	assemble (Global {curVarPos=p,globVarMap=m,varBody=bm}) = ["ajs " ++ show p] ++ concat (map (\(i,e) -> assemble e ++ ["stl " ++ show i]) getList)
+		where
+		getList = Map.elems (Map.intersectionWith (\x y -> (x, y)) m bm)
 	
 instance Assemble Frame where
 	assemble (Frame {curPos=c, IR.id=i, varMap=v, body=b}) = [i ++ ": "] ++ ["ldr MP"] ++ ["ldrr MP SP"] ++ ["ajs " ++ show c] ++ assemble b ++ ["ldrr SP MP"] ++ ["str MP"] ++ lastOp
@@ -49,7 +54,7 @@ instance Assemble Frame where
 		lastOp = if i == "main" then ["halt"] else ["ret"]
 	
 instance Assemble Reg where
-	assemble (Reg { frameList=f}) = ["ldrr 4 SP", "bra main"] ++ concat (map assemble (Map.elems f))
+	assemble (Reg { frameList=f, globVars=g}) = ["ldrr 4 MP"] ++ assemble g ++  ["bra main"] ++ concat (map assemble (Map.elems f))
 
 instance Assemble IR where
 	assemble (Ex e) = assemble e

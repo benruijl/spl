@@ -1,5 +1,10 @@
 int a = 5;
+bool b = true;
 
 void main() {
+	int c = 2;
+
 	print(a);
+    print(b);
+	print(c);
 }
