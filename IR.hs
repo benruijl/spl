@@ -20,7 +20,8 @@ instance Show IR where
 	show (Cx f) = error "FAIL" -- FIXME: cannot show function 
 
 data Frame = Frame {curPos :: Int, curArgPos :: Int, id :: String, varMap :: Map Label Int, body :: IR} deriving Show
-data Reg = Reg { labelCount :: Int, regCount :: Int, curFrame :: Frame, frameList :: Map Label Frame} deriving Show
+data Global = Global {curVarPos :: Int, globVarMap :: Map Label Int, varBody :: Map Label IR} deriving Show
+data Reg = Reg { labelCount :: Int, regCount :: Int, curFrame :: Frame, frameList :: Map Label Frame, globVars :: Global, global :: Bool} deriving Show
 type F a = M a Reg
 
 newLabel :: F Label
@@ -38,15 +39,29 @@ addArgToFrame :: Label -> F Int
 addArgToFrame l r@(Reg {curFrame=f}) = case f of
 	(Frame {curArgPos=p,varMap=m} ) -> (p, r{curFrame=f{curArgPos= p - 1, varMap= Map.insert l p m}})
 
--- TODO: move to SSM?
-getVarLoc :: Label -> F Int
-getVarLoc l r@(Reg {curFrame=f}) = case f of
-	(Frame {varMap=m} ) -> case Map.lookup l m of
-		Just x -> yield x r
-		Nothing -> error $ "Error: location of variable " ++ l ++ " not found in map"
+addGlobVar :: Label -> Exp -> F Int
+addGlobVar l b r@(Reg {globVars=f}) = case f of
+	(Global {curVarPos=p,globVarMap=m,varBody=bm} ) -> (p, r{globVars=(Global (p + 1) (Map.insert l p m) (Map.insert l (Ex b) bm))})
 
+-- TODO: move to SSM?
+getVarLoc :: Label -> F Exp
+getVarLoc l r@(Reg {curFrame=f, globVars=g}) = case f of
+	(Frame {varMap=m} ) -> case Map.lookup l m of
+		Just x -> yield (MEM $CONST x) r
+		Nothing -> case g of
+			(Global {globVarMap=v}) -> case Map.lookup l v of
+				Just y -> yield (MEM $ BINOP PLUS (TEMP "_glob") (CONST y)) r
+				Nothing -> error $ "Error: location of variable " ++ l ++ " not found in map"
+
+-- TODO: is this function necessary or can we just add it to newFrame?
 addBody :: IR -> F IR
 addBody b r@(Reg {curFrame=f}) = (b, r{curFrame=f{body=b}})
+
+isGlobal :: Reg -> Bool
+isGlobal r@(Reg {global=g}) = g
+
+setGlobal :: Bool -> Reg -> Reg
+setGlobal b r@(Reg {global=g}) = r{global=b}
 
 newFrame :: String -> F String
 newFrame s r@(Reg {curFrame=f}) = (s, r{curFrame=(Frame 1 (-2) s Map.empty (Ex $ CONST 0))})
@@ -68,6 +83,7 @@ seq (x:xs) = SEQ x (seq xs)
 unEx :: IR -> F Exp
 unEx (Ex e) = yield e
 unEx (Nx s) = yield $ ESEQ s (CONST 0)
+-- FIXME: newReg is not supported
 unEx (Cx c) = newReg # newLabel # newLabel >-> \((r,t),f) -> ESEQ (seq [(MOVE (TEMP r) (CONST 1)), (c t f), (LABEL f), (MOVE (TEMP r) (CONST 0)), (LABEL t)]) (TEMP r)
 
 unNx :: IR -> F Stm
@@ -81,7 +97,7 @@ unCx (Ex e) = yield $ CJUMP EQ e (CONST 1)
 unCx (Cx c) = yield c
 
 convertProg :: AST.Prog -> Reg
-convertProg p = snd $ (iter (\x -> convert x !++! unNx) p >-> (\x -> Nx (seq x))) (Reg 0 0 (Frame 1 (-2) "" Map.empty (Ex(CONST 0))) Map.empty)
+convertProg p = snd $ (iter (\x -> convert x !++! unNx) p >-> (\x -> Nx (seq x))) (Reg 0 0 (Frame 1 (-2) "" Map.empty (Ex(CONST 0))) Map.empty (Global  0 Map.empty Map.empty) True)
 
 class Convert a where
 	convert :: a -> F IR
@@ -93,8 +109,8 @@ instance Convert AST.Exp where
 	convert (AST.Op1_ AST.UnitaryMinus a) = convert a !++! unEx >-> \k -> Ex $ BINOP MINUS (CONST 0) k
 	convert (AST.Op1_ AST.Negate a) = convert a !++! unEx >-> \k -> Ex $ BINOP XOR (CONST 1) k
 
-	convert AST.EmptyList = yield $ Ex $ CALL (TEMP "alloc") [CONST 0, CONST 0]
-	convert (AST.ExpOp_ AST.AppCons a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(x,y) -> Ex $ CALL (TEMP "alloc") [x, y]
+	convert AST.EmptyList = yield $ Ex $ CALL (TEMP "_alloc") [CONST 0, CONST 0]
+	convert (AST.ExpOp_ AST.AppCons a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(x,y) -> Ex $ CALL (TEMP "_alloc") [x, y]
 	convert (AST.ExpOp_ o a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(l,r) -> if elem o relOp then Cx (CJUMP (getOp rel) l r) else Ex (BINOP (getOp bin) l r)
 		where
 		relOp = [AST.Equals, AST.Less, AST.More, AST.LessEq, AST.MoreEq, AST.NotEq]
@@ -103,11 +119,10 @@ instance Convert AST.Exp where
 		getOp m = case Prelude.lookup o m of
 			Just a -> a
 			Nothing -> error $ "Undefined operator " ++ show o
-	convert (AST.Tuple a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(x,y) -> Ex $ CALL (TEMP "alloc") [x, y]
+	convert (AST.Tuple a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(x,y) -> Ex $ CALL (TEMP "_alloc") [x, y]
 
 	-- FIXME: what to do with names that overlap?
-	-- FIXME: always relative to MP
-	convert (AST.Id name) =  getVarLoc name >-> \k -> Ex $ MEM ((CONST k)) -- (BINOP PLUS (TEMP "fp")
+	convert (AST.Id name) =  getVarLoc name >-> \x -> Ex x
 	convert (AST.FunCall (id, args)) = convert (AST.FunCall_ (id, args))
 
 instance Convert AST.Stmt where
@@ -116,20 +131,22 @@ instance Convert AST.Stmt where
 	convert (AST.While cond stmt) = convert cond # convert stmt !++! uncurry parseWhile
 		where
 		parseWhile c s = newLabel # newLabel !++! \(b,d) -> (unCx c >-> \x -> (x b d, b, d)) # unNx s # newLabel  >-> \(((cc, b, d),ss),t) -> Nx (seq [LABEL t, cc, LABEL b, ss, JUMP (NAME t) [], LABEL d])
-	--convert (AST.Assign id exp) = convert exp !++! unEx >-> \e -> Nx $ MOVE (MEM (TEMP id)) e
-	convert (AST.Assign id exp) = getVarLoc id # convert exp !-+! unEx >-> \(k,e) -> Nx (MOVE (MEM (CONST k)) e) -- (BINOP PLUS (TEMP "fp")
+	convert (AST.Assign id exp) = getVarLoc id # convert exp !-+! unEx >-> \(k,e) -> Nx (MOVE k e)
 	convert (AST.Seq stmt) = (iter (\x -> convert x !++! unNx) stmt) >-> \x -> Nx (seq x)
 	convert (AST.FunCall_ (id, args)) = (iter (\x -> convert x !++! unEx) args) >-> \x -> Ex $ CALL (TEMP id) x
 	convert (AST.Return (Just a)) = convert a !++! unEx # getFunctionName >-> \(e,n) -> Nx $ SEQ(MOVE (MEM (TEMP "_res")) e) (JUMP (NAME (n++"_end")) []) -- store result in specific temporary
 
 -- TODO: what to do with global variables?
 instance Convert AST.VarDecl where
-	convert (AST.VD t id exp) = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE (MEM (CONST k)) e -- (BINOP PLUS (TEMP "fp") )
+	convert (AST.VD t id exp) = \e -> if isGlobal e then addGlob e else addLoc e
+		where
+		addGlob = convert exp !++! unEx !++! (\e -> addGlobVar id e >-> (\k -> Nx $ MOVE (MEM (CONST k)) e))
+		addLoc = addVarToFrame id # convert exp !++! \(k,e) -> unEx e >-> (\x -> (k,x)) >-> \(k,e) -> Nx $ MOVE (MEM (CONST k)) e
 
 -- Arguments are added first on stack
 -- Function definitions are added next
 instance Convert AST.FunDecl where
-	convert (AST.FD t id args var stmt) = newFrame id >>| ((iter (addArgToFrame . snd) (reverse args) # listConv var # convert stmt !-+! unNx) >-> (\((a,v),s) -> Nx $ seq (v ++ [s] ++ [LABEL (id ++"_end")]))) !++! addBody >>- storeFrame id
+	convert (AST.FD t id args var stmt) = setGlobal False >--> (setGlobal True >--> newFrame id) >>| ((iter (addArgToFrame . snd) (reverse args) # listConv var # convert stmt !-+! unNx) >-> (\((a,v),s) -> Nx $ seq (v ++ [s] ++ [LABEL (id ++"_end")]))) !++! addBody >>- storeFrame id
 		where
 		listConv = iter (\x -> convert x !++! unNx)
 

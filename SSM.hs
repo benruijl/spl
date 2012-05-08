@@ -11,6 +11,7 @@ instance Assemble Exp where
 	assemble (CONST a) = ["ldc " ++ show a]
 	assemble (NAME s) = [s] -- FIXME
 	assemble (TEMP l) = [l] -- FIXME
+	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["ldr 4", "lda " ++ show x]  
 	assemble (MEM (CONST a)) = ["ldl " ++ show a]  -- FIXME: do something else?
 	assemble (BINOP o a b) = assemble a ++ assemble b ++ [op o]
 		where
@@ -18,7 +19,7 @@ instance Assemble Exp where
 			Just c -> c 
 		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "mul"), (DIV, "div"), (MOD, "mod"), (XOR, "xor")]
 		
-	assemble (CALL (TEMP "alloc") args) = concatMap assemble args ++ ["stmh " ++ show (length args), "ldc " ++ show (length args - 1), "sub"]
+	assemble (CALL (TEMP "_alloc") args) = concatMap assemble args ++ ["stmh " ++ show (length args), "ldc " ++ show (length args - 1), "sub"]
 	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["ldh 0"] -- get value
 	assemble (CALL (TEMP "tail") args) = assemble (head args) ++ ["ldh 1"]
 	assemble (CALL (TEMP "fst") args) = assemble (head args) ++ ["ldh 0"]
@@ -28,7 +29,7 @@ instance Assemble Exp where
 	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["ldc " ++ id, "jsr", "ajs -" ++ show (length args), "ldr RR"]
 	
 instance Assemble Stm where
-	-- FIXME: can only move local vars, no support for temporaries
+	assemble (MOVE (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) e) = ["ldr 4"] ++ assemble e ++ ["sta " ++ show x]
 	assemble (MOVE (MEM (TEMP "_res")) e) = assemble e ++ ["str RR"]
 	assemble (MOVE (MEM (CONST v)) b) = assemble b ++ ["stl " ++ show v]
 	assemble (EXP e) = assemble e
@@ -36,7 +37,7 @@ instance Assemble Stm where
 	assemble (SEQ a b) = assemble a ++ assemble b
 	assemble (JUMP (NAME l) _) = ["bra " ++ l] -- FIXME: correct?
 	-- corrects for consumption of the brf
-	assemble (CJUMP o a b t f) = assemble a ++ assemble b ++ [op o] ++ ["brf " ++ f, "ldc 1", "brt " ++ t]
+	assemble (CJUMP o a b t f) = assemble a ++ assemble b ++ [op o] ++ ["brf " ++ f, "bra " ++ t]
 		where
 		op o = case lookup o rel of
 			Just c -> c 
@@ -48,7 +49,7 @@ instance Assemble Frame where
 		lastOp = if i == "main" then ["halt"] else ["ret"]
 	
 instance Assemble Reg where
-	assemble (Reg { frameList=f}) = ["bra main"] ++ concat (map assemble (Map.elems f))
+	assemble (Reg { frameList=f}) = ["ldrr 4 SP", "bra main"] ++ concat (map assemble (Map.elems f))
 
 instance Assemble IR where
 	assemble (Ex e) = assemble e
