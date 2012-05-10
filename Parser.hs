@@ -2,24 +2,19 @@ module Parser where
 
 import AST
 import Scanner
-import Combinators
+import MaybeCombinators
 
 type Parser a = CoreScanner a [Token]
 
 {-
 Order of operations:
-
-infixr 9  .
 infixr 8  ^, ^^, **
-infixl 7  *, /, `quot`, `rem`, `div`, `mod`
+infixl 7  *, /, %
 infixl 6  +, -
 infixr 5  :
 infix  4  ==, /=, <, <=, >=, >
 infixr 3  &&
 infixr 2  ||
-infixl 1  >>, >>=
-infixr 1  =<<
-infixr 0  $, $!, `seq`
 -}
 
 opAdd =  (match "+") >-> (\_ -> Add)
@@ -103,7 +98,6 @@ factorParse = fcParse ! boolParse ! tupleParse ! op1Parse ! (idScan >-> (\x -> I
   boolParse = (match "true") >-> (\x -> Bool True) ! (match "false") >-> (\x -> Bool False)
   op1Parse = op1 # factorParse >-> (\(o, x) -> Op1_ o x) -- only accepts factors
     
-
 stmtParse = returnParse ! ifElseParse ! (funCallParse  >>- (match ";") >-> (\x -> FunCall_ x)) ! curlyParse ! assignParse ! whileParse
 
 curlyParse = match "{" >>| iter stmtParse >>- match "}" >-> (\x -> Seq x)

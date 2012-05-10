@@ -4,20 +4,18 @@ import Prelude hiding (seq, EQ, LT, GT)
 import Data.Map as Map
 import qualified AST
 import Typing (Env)
-import Combinators2
+import Combinators
 
 type Label = String
 data BinOp = PLUS | MINUS | MUL | DIV | AND | OR | MOD | LSHIFT | RSHIFT | ARSHIFT | XOR deriving (Show, Eq)
 data RelOp = EQ | NE| LT | GT| LE | GE | ULT | ULE | UGT | UGE deriving (Show, Eq)
 data Exp = CONST Int | NAME String | TEMP Label | BINOP BinOp Exp Exp | MEM Exp | CALL Exp [Exp] | ESEQ Stm Exp deriving Show
--- TODO: what to do with the [Exp] in JUMP?
 data Stm = MOVE Exp Exp | EXP Exp | JUMP Exp [Exp] | CJUMP RelOp Exp Exp Label Label | SEQ Stm Stm | LABEL String deriving Show
 data IR = Ex Exp | Nx Stm | Cx (Label -> Label -> Stm)
 
 instance Show IR where
 	show (Ex e) = show e
 	show (Nx s) = show s
-	show (Cx f) = error "FAIL" -- FIXME: cannot show function 
 
 data Frame = Frame {curPos :: Int, curArgPos :: Int, id :: String, varMap :: Map Label Int, body :: IR} deriving Show
 data Global = Global {curVarPos :: Int, globVarMap :: Map Label Int, varBody :: Map Label IR} deriving Show
@@ -33,8 +31,7 @@ newReg r@(Reg {regCount=l}) = ("l" ++ show l, r{regCount=l+1})
 addVarToFrame :: Label -> F Int
 addVarToFrame l r@(Reg {curFrame=f}) = case f of
 	(Frame {curPos=p,varMap=m} ) -> (p, r{curFrame=f{curPos=p + 1, varMap= Map.insert l p m}})
-	
--- FIXME: partially move to SSM?
+
 addArgToFrame :: Label -> F Int
 addArgToFrame l r@(Reg {curFrame=f}) = case f of
 	(Frame {curArgPos=p,varMap=m} ) -> (p, r{curFrame=f{curArgPos= p - 1, varMap= Map.insert l p m}})
@@ -43,7 +40,6 @@ addGlobVar :: Label -> Exp -> F Int
 addGlobVar l b r@(Reg {globVars=f}) = case f of
 	(Global {curVarPos=p,globVarMap=m,varBody=bm} ) -> (p, r{globVars=(Global (p + 1) (Map.insert l p m) (Map.insert l (Ex b) bm))})
 
--- TODO: move to SSM?
 getVarLoc :: Label -> F Exp
 getVarLoc l r@(Reg {curFrame=f, globVars=g}) = case f of
 	(Frame {varMap=m} ) -> case Map.lookup l m of
@@ -73,7 +69,6 @@ getFunctionName :: F String
 getFunctionName r@(Reg {curFrame=f}) = case f of
 	(Frame {IR.id=s}) -> (s, r)
 
--- make a sequence from list
 seq :: [Stm] -> Stm
 seq [] = error "Empty sequence"
 seq [x] = x
@@ -120,9 +115,7 @@ instance Convert AST.Exp where
 			Just a -> a
 			Nothing -> error $ "Undefined operator " ++ show o
 	convert (AST.Tuple a b) = (convert a !++! unEx # convert b !-+! unEx) >-> \(x,y) -> Ex $ CALL (TEMP "_alloc") [x, y]
-
-	-- FIXME: what to do with names that overlap?
-	convert (AST.Id name) =  getVarLoc name >-> \x -> Ex x
+	convert (AST.Id name) =  getVarLoc name >-> Ex
 	convert (AST.FunCall (id, args)) = convert (AST.FunCall_ (id, args))
 
 instance Convert AST.Stmt where
@@ -136,7 +129,6 @@ instance Convert AST.Stmt where
 	convert (AST.FunCall_ (id, args)) = (iter (\x -> convert x !++! unEx) args) >-> \x -> Ex $ CALL (TEMP id) x
 	convert (AST.Return (Just a)) = convert a !++! unEx # getFunctionName >-> \(e,n) -> Nx $ SEQ(MOVE (MEM (TEMP "_res")) e) (JUMP (NAME (n++"_end")) []) -- store result in specific temporary
 
--- TODO: what to do with global variables?
 instance Convert AST.VarDecl where
 	convert (AST.VD t id exp) = \e -> if isGlobal e then addGlob e else addLoc e
 		where

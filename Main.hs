@@ -26,6 +26,6 @@ main = do
    f <- readFile s
    let prog =  (parseSuccess . progParse. scanSuccess. lineScan) f
    mapM_ putStrLn $ prettyPrint prog
-   putStrLn $ unlines $ assemble $ convertProg prog -- $ progTypeCheck prog $ buildEnv prog 
+   putStrLn $ unlines $ assemble $ convertProg prog  $ progTypeCheck prog $ buildEnv prog 
 
 

@@ -1,14 +1,7 @@
 module Scanner where
--- ?: Scan with p and check the parsed value with b, p ? b
--- !: Scan with a, if fails, parse with b, a ! b
--- #: Scan with a, parse leftovers with b, a # b
--- >->: Convert parsed type a to b
--- >>>: Extract a scanners result
--- >>|: Sequence operator that discards the first result
--- >>-: Discards second result
 
 import Data.Char
-import Combinators
+import MaybeCombinators
 import AST
 
 data Token = Int__ Int | Id__ String | String_ String

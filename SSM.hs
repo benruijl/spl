@@ -9,8 +9,8 @@ class Assemble a where
 
 instance Assemble Exp where
 	assemble (CONST a) = ["ldc " ++ show a]
-	assemble (NAME s) = [s] -- FIXME
-	assemble (TEMP l) = [l] -- FIXME
+	assemble (NAME s) = [s]
+	assemble (TEMP l) = [l]
 	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["ldr 4", "lda " ++ show x]  
 	assemble (MEM (CONST a)) = ["ldl " ++ show a]  -- FIXME: do something else?
 	assemble (BINOP o a b) = assemble a ++ assemble b ++ [op o]
@@ -20,12 +20,12 @@ instance Assemble Exp where
 		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "mul"), (DIV, "div"), (MOD, "mod"), (XOR, "xor")]
 		
 	assemble (CALL (TEMP "_alloc") args) = concatMap assemble args ++ ["stmh " ++ show (length args), "ldc " ++ show (length args - 1), "sub"]
-	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["ldh 0"] -- get value
+	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["ldh 0"]
 	assemble (CALL (TEMP "tail") args) = assemble (head args) ++ ["ldh 1"]
 	assemble (CALL (TEMP "fst") args) = assemble (head args) ++ ["ldh 0"]
 	assemble (CALL (TEMP "snd") args) = assemble (head args) ++ ["ldh 1"]
 	assemble (CALL (TEMP "empty") args) = assemble (head args) ++ ["ldh 1", "ldc 0", "eq"]
-	assemble (CALL (TEMP "print") args) = assemble (head args)++ ["trap 0"] -- hardcoded print function, TODO: add ajs?
+	assemble (CALL (TEMP "print") args) = assemble (head args)++ ["trap 0"]
 	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["ldc " ++ id, "jsr", "ajs -" ++ show (length args), "ldr RR"]
 	
 instance Assemble Stm where
@@ -35,8 +35,7 @@ instance Assemble Stm where
 	assemble (EXP e) = assemble e
 	assemble (LABEL l) = [l ++ ":"]
 	assemble (SEQ a b) = assemble a ++ assemble b
-	assemble (JUMP (NAME l) _) = ["bra " ++ l] -- FIXME: correct?
-	-- corrects for consumption of the brf
+	assemble (JUMP (NAME l) _) = ["bra " ++ l]
 	assemble (CJUMP o a b t f) = assemble a ++ assemble b ++ [op o] ++ ["brf " ++ f, "bra " ++ t]
 		where
 		op o = case lookup o rel of

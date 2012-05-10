@@ -1,10 +1,11 @@
 module Typing where
 
 import AST
+import Combinators
 import Data.List
 import qualified Data.Map as Map
 
--- Env = (fresh var count, global symb. table, local symb table, funcall symb table, scope)
+-- Env = (fresh var count, global symb table, local symb table, funcall symb table, scope)
 data Scope = Global | Local Id | FunctionCall deriving (Show, Eq)
 type SymbolTable = ([(Type, Type)], [(Id, Type)])
 type SymbolRenameTable = ([(Type, Type)], Map.Map Type Type)
@@ -168,40 +169,12 @@ listDo a l = \e -> foldl (\x y -> a y x) e l
 
 type TC a = Env -> (a, Env)
 
-yield :: a -> Env -> (a, Env)
-yield t e = (t, e)
-
-infixl 5 >->
-(>->) :: TC a -> (a -> b) -> TC b
-(>->) p k e =
-  case p e of
-    (a,e') -> (k a, e')
-
--- mutate environment
-infixr 4 >-->
-(>-->) ::  (Env -> Env) -> TC a -> TC a
-(>-->) k p e =
-  case p e of
-    (a,e') -> (a, k e')
-    
-infixl 6 #
-(#) :: TC a -> TC b -> TC (a,b)
-(#) a b e =
-  case a e of
-    (c, e') ->
-      case b e' of
-        (q, e'') -> ((c,q), e'')
-   
 -- unify
 infixl 7 !~!
 (!~!) :: TC Type -> TC Type -> TC Type
 (!~!) a b e =  
   case (a # b) e of
     ((x, y), e') -> (x, unify x y e')
-    
-iter :: (a -> Env -> (b, Env)) -> [a] -> Env -> ([b], Env)
-iter f [] = yield []
-iter f (l:ls) = f l # iter f ls >-> (\(a,b) -> a:b)
 
 class TypeCheck a where
 	typeCheck :: a -> Env -> (Type, Env)
