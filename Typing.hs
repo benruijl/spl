@@ -161,8 +161,8 @@ defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
 	print = ("print", Function [Generic_ "t"] Void)
 
 -- Type check an entire program
-progTypeCheck :: Prog -> Env -> Env
-progTypeCheck p e = snd $ iter typeCheck p e
+progTypeCheck :: Prog -> Env
+progTypeCheck p = snd $ iter typeCheck p (buildEnv p)
 
 listDo :: (a -> Env -> Env) -> [a] -> Env -> Env
 listDo a l = \e -> foldl (\x y -> a y x) e l
