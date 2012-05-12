@@ -1,7 +1,7 @@
-void test(int a) {
+int add(int a) {
 	return a + 1;
 }
 
 void main() {
-	print(test(2));
+	print(add(2));
 }

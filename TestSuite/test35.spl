@@ -1,0 +1,11 @@
+void printListRec([t] a) {
+	if (!empty(a)) {
+		print(head(a));
+		printListRec(tail(a));
+	}
+}
+
+void main() {
+	[int] b = 6 : 5 : [];
+	printListRec(b);
+}

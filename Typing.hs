@@ -155,9 +155,9 @@ defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
 	where
 	hd = ("head", Function [List_ (Generic_ "t")] (Generic_ "t"))
 	tl = ("tail", Function [List_ (Generic_ "t")] (List_ (Generic_ "t")))
-	isEmpty = ("isEmpty", Function [List_ (Generic_ "t")] Bool_)
-	fst = ("fst", Function [Tuple_ (Generic_ "t") (Generic_ "t")] (Generic_ "t"))
-	snd = ("snd", Function [Tuple_ (Generic_ "t") (Generic_ "t")] (Generic_ "t"))
+	isEmpty = ("empty", Function [List_ (Generic_ "t")] Bool_)
+	fst = ("fst", Function [Tuple_ (Generic_ "t") (Generic_ "v")] (Generic_ "t"))
+	snd = ("snd", Function [Tuple_ (Generic_ "t") (Generic_ "v")] (Generic_ "t"))
 	print = ("print", Function [Generic_ "t"] Void)
 
 -- Type check an entire program
