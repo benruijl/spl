@@ -8,7 +8,7 @@ import Parser
 import AST
 import Typing
 import IR
-import SSM
+import Intel
 
 parseSuccess :: Maybe (a, [Token]) -> a
 parseSuccess (Just (x,[])) = x

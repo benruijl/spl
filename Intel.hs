@@ -9,11 +9,11 @@ class Assemble a where
 	assemble :: a -> [String]
 
 instance Assemble Exp where
-	assemble (CONST a) = ["ldc " ++ show a]
+	assemble (CONST a) = ["mov eax, " ++ show a, "push eax"]
 	assemble (NAME s) = [s]
 	assemble (TEMP l) = [l]
 	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["ldr 4", "lda " ++ show x]  
-	assemble (MEM (CONST a)) = ["ldl " ++ show a]  -- FIXME: do something else?
+	assemble (MEM (CONST a)) = ["push word[ebp +" ++ show (4* a) ++ "]"]
 	assemble (BINOP o a b) = assemble a ++ assemble b ++ [op o]
 		where
 		op o = case lookup o conv of
@@ -26,18 +26,19 @@ instance Assemble Exp where
 	assemble (CALL (TEMP "fst") args) = assemble (head args) ++ ["ldh 0"]
 	assemble (CALL (TEMP "snd") args) = assemble (head args) ++ ["ldh 1"]
 	assemble (CALL (TEMP "empty") args) = assemble (head args) ++ ["ldh 1", "ldc 0", "eq"]
-	assemble (CALL (TEMP "print") args) = assemble (head args)++ ["trap 0"]
+	-- FIXME: only prints single digit
+	assemble (CALL (TEMP "print") args) = assemble (head args) ++ ["pop eax", "add eax,30h", "push eax", "mov eax,4", "mov ecx,esp", "mov ebx,1", "mov edx,1", "int 0x80", "pop eax"]
 	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["ldc " ++ id, "jsr", "ajs -" ++ show (length args), "ldr RR"]
 	
 instance Assemble Stm where
 	assemble (MOVE (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) e) = ["ldr 4"] ++ assemble e ++ ["sta " ++ show x]
 	assemble (MOVE (MEM (TEMP "_res")) e) = assemble e ++ ["str RR"]
-	assemble (MOVE (MEM (CONST v)) b) = assemble b ++ ["stl " ++ show v]
+	assemble (MOVE (MEM (CONST v)) b) = assemble b ++ ["pop eax", "mov [ebp + " ++ show (4*v) ++ "], eax"]
 	assemble (EXP e) = assemble e
 	assemble (LABEL l) = [l ++ ":"]
 	assemble (SEQ a b) = assemble a ++ assemble b
-	assemble (JUMP (NAME l) _) = ["bra " ++ l]
-	assemble (CJUMP o a b t f) = assemble b ++ assemble a ++ ["pop aex", "cmp aex,[esp]", "sub esp, 4", op o ++ f, "jump " ++ t]
+	assemble (JUMP (NAME l) _) = ["jmp " ++ l]
+	assemble (CJUMP o a b t f) = assemble b ++ assemble a ++ ["pop eax", "cmp eax,[esp]", "sub esp, 4", op o ++ f, "jmp " ++ t]
 		where
 		op o = case lookup o rel of
 			Just c -> c 
@@ -50,12 +51,12 @@ instance Assemble Global where
 	
 -- FIXME add or sub?
 instance Assemble Frame where
-	assemble (Frame {curPos=c, IR.id=i, varMap=v, body=b}) = [i ++ ": "] ++ ["push ebp", "mov ebp,esp", "add esp, " ++ show 4*c] ++ assemble b ++ ["mov esp,ebp"] ++ ["pop ebp"] ++ lastOp
+	assemble (Frame {curPos=c, IR.id=i, varMap=v, body=b}) = [i ++ ": "] ++ ["push ebp", "mov ebp,esp", "add esp, " ++ show (4*c)] ++ assemble b ++ ["mov esp,ebp"] ++ ["pop ebp"] ++ lastOp
 		where
-		lastOp = if i == "main" then ["	mov	ebx,0", "mov eax,1", "int 0x80"] else ["ret"]
+		lastOp = if i == "main" then ["mov ebx,0", "mov eax,1", "int 0x80"] else ["ret"]
 	
 instance Assemble Reg where
-	assemble (Reg { frameList=f, globVars=g}) = ["mov esi,ebp"] ++ assemble g ++  ["jump main"] ++ concat (map assemble (Map.elems f))
+	assemble (Reg { frameList=f, globVars=g}) = ["mov esi,ebp"] ++ assemble g ++  ["jmp main"] ++ concat (map assemble (Map.elems f))
 
 instance Assemble IR where
 	assemble (Ex e) = assemble e
