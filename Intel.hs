@@ -12,15 +12,16 @@ instance Assemble Exp where
 	assemble (CONST a) = ["mov eax, " ++ show a, "push eax"]
 	assemble (NAME s) = [s]
 	assemble (TEMP l) = [l]
-	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["ldr 4", "lda " ++ show x]  
+	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["push word[esi + " ++ show (4*x) ++ "]"]  
 	assemble (MEM (CONST a)) = ["push word[ebp +" ++ show (4* a) ++ "]"]
-	assemble (BINOP o a b) = assemble a ++ assemble b ++ [op o]
+	-- TODO: fix modulo
+	assemble (BINOP o a b) = assemble a ++ ["pop eax"] ++ assemble b ++ ["pop ebx", op o ++ " eax ebx]"]
 		where
 		op o = case lookup o conv of
 			Just c -> c 
 		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "mul"), (DIV, "div"), (MOD, "mod"), (XOR, "xor")]
 		
-	assemble (CALL (TEMP "_alloc") args) = concatMap assemble args ++ ["stmh " ++ show (length args), "ldc " ++ show (length args - 1), "sub"]
+	assemble (CALL (TEMP "_alloc") args) = concatMap assemble args ++ ["push " ++ show (4 * length args), "call malloc", "sub esp, " ++ show (4 * length args)] -- FIXME: add or sub? ; Add the elements to the address
 	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["ldh 0"]
 	assemble (CALL (TEMP "tail") args) = assemble (head args) ++ ["ldh 1"]
 	assemble (CALL (TEMP "fst") args) = assemble (head args) ++ ["ldh 0"]
