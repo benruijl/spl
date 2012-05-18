@@ -12,10 +12,10 @@ instance Assemble Exp where
 	assemble (CONST a) = ["mov eax, " ++ show a, "push eax"]
 	assemble (NAME s) = [s]
 	assemble (TEMP l) = [l]
-	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["push word[esi + " ++ show (4*x) ++ "]"]  
-	assemble (MEM (CONST a)) = ["push word[ebp +" ++ show (4* a) ++ "]"]
+	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["push word[esi - " ++ show (4*x) ++ "]"]  
+	assemble (MEM (CONST a)) = ["push word[ebp -" ++ show (4* a) ++ "]"]
 	-- TODO: fix modulo
-	assemble (BINOP o a b) = assemble a ++ assemble b ++ ["pop eax", "pop ebx", op o ++ " eax, ebx", "push eax"]
+	assemble (BINOP o a b) = assemble a ++ assemble b ++ ["pop ebx", "pop eax", op o ++ " eax, ebx", "push eax"]
 		where
 		op o = case lookup o conv of
 			Just c -> c 
@@ -29,7 +29,7 @@ instance Assemble Exp where
 	assemble (CALL (TEMP "empty") args) = assemble (head args) ++ ["ldh 1", "ldc 0", "eq"]
 	-- FIXME: only prints single digit
 	assemble (CALL (TEMP "print") args) = assemble (head args) ++ ["pop eax", "add eax,30h", "push eax", "mov eax,4", "mov ecx,esp", "mov ebx,1", "mov edx,1", "int 0x80", "sub esp, 4"]
-	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["call " ++ id, "add esp, " ++ show (4 * length args)] -- FIXME: what happens if there is no return value?
+	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["call " ++ id, "add esp, " ++ show (4 * length args), "push eax"] -- FIXME: what happens if there is no return value?
 	
 instance Assemble Stm where
 	assemble (MOVE (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) e) = ["ldr 4"] ++ assemble e ++ ["sta " ++ show x]
