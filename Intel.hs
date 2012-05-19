@@ -1,5 +1,6 @@
 {-- Linux Intel machine assembly, assumes word length is 4 --}
 -- TODO: make a working Hello World!
+-- FIXME: functions with empty body not allowed
 module Intel where
 
 import Prelude hiding (seq, EQ, LT, GT)
@@ -22,8 +23,8 @@ instance Assemble Exp where
 			Just c -> c 
 		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "imul"), (DIV, "div"), (MOD, "mod"), (XOR, "xor")]
 		
-	assemble (CALL (TEMP "_alloc") args) = concatMap assemble args ++ ["push " ++ show (4 * length args), "call malloc", "add esp, " ++ show (4 * length args)] -- FIXME: add or sub? ; Add the elements to the address
-	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["ldh 0"]
+	assemble (CALL (TEMP "_alloc") args) = ["push " ++ show (4 * length args), "call malloc", "add esp, 4", "push eax"] ++ concatMap (\(i,x) -> assemble x ++ ["pop eax", "pop ebx", "mov [ebx +" ++ show (i * 4) ++ "], eax", "push ebx"]) (zip [0..] args)
+	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["pop eax", "push dword[eax]"]
 	assemble (CALL (TEMP "tail") args) = assemble (head args) ++ ["ldh 1"]
 	assemble (CALL (TEMP "fst") args) = assemble (head args) ++ ["ldh 0"]
 	assemble (CALL (TEMP "snd") args) = assemble (head args) ++ ["ldh 1"]
@@ -58,7 +59,7 @@ instance Assemble Frame where
 		lastOp = if i == "main" then ["mov ebx,0", "mov eax,1", "int 0x80"] else ["ret"]
 	
 instance Assemble Reg where
-	assemble (Reg { frameList=f, globVars=g}) = ["mov esi,ebp"] ++ assemble g ++  ["jmp main"] ++ concat (map assemble (Map.elems f))
+	assemble (Reg { frameList=f, globVars=g}) = ["extern malloc", "section .text", "global main", "mov esi,ebp"] ++ assemble g ++  ["jmp main"] ++ concat (map assemble (Map.elems f))
 
 instance Assemble IR where
 	assemble (Ex e) = assemble e
