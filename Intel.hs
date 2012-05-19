@@ -1,4 +1,5 @@
 {-- Linux Intel machine assembly, assumes word length is 4 --}
+-- TODO: make a working Hello World!
 module Intel where
 
 import Prelude hiding (seq, EQ, LT, GT)
@@ -12,14 +13,14 @@ instance Assemble Exp where
 	assemble (CONST a) = ["mov eax, " ++ show a, "push eax"]
 	assemble (NAME s) = [s]
 	assemble (TEMP l) = [l]
-	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["push word[esi - " ++ show (4*x) ++ "]"]  
-	assemble (MEM (CONST a)) = ["push word[ebp -" ++ show (4* a) ++ "]"]
+	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["push dword[esi - " ++ show (4*x) ++ "]"]  
+	assemble (MEM (CONST a)) = ["push dword[ebp -" ++ show (4* a) ++ "]"]
 	-- TODO: fix modulo
 	assemble (BINOP o a b) = assemble a ++ assemble b ++ ["pop ebx", "pop eax", op o ++ " eax, ebx", "push eax"]
 		where
 		op o = case lookup o conv of
 			Just c -> c 
-		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "mul"), (DIV, "div"), (MOD, "mod"), (XOR, "xor")]
+		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "imul"), (DIV, "div"), (MOD, "mod"), (XOR, "xor")]
 		
 	assemble (CALL (TEMP "_alloc") args) = concatMap assemble args ++ ["push " ++ show (4 * length args), "call malloc", "add esp, " ++ show (4 * length args)] -- FIXME: add or sub? ; Add the elements to the address
 	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["ldh 0"]
@@ -34,19 +35,19 @@ instance Assemble Exp where
 instance Assemble Stm where
 	assemble (MOVE (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) e) = ["ldr 4"] ++ assemble e ++ ["sta " ++ show x]
 	assemble (MOVE (MEM (TEMP "_res")) e) = assemble e ++ ["pop eax"]-- store in EAX
-	assemble (MOVE (MEM (CONST v)) b) = assemble b ++ ["pop eax", "mov [ebp + " ++ show (4*v) ++ "], eax"]
+	assemble (MOVE (MEM (CONST v)) b) = assemble b ++ ["pop eax", "mov [ebp - " ++ show (4*v) ++ "], eax"]
 	assemble (EXP e) = assemble e
 	assemble (LABEL l) = [l ++ ":"]
 	assemble (SEQ a b) = assemble a ++ assemble b
 	assemble (JUMP (NAME l) _) = ["jmp " ++ l]
-	assemble (CJUMP o a b t f) = assemble b ++ assemble a ++ ["pop eax", "cmp eax,[esp]", "add esp, 4", op o ++ f, "jmp " ++ t]
+	assemble (CJUMP o a b t f) = assemble b ++ assemble a ++ ["pop eax", "pop ebx", "cmp eax,ebx", op o ++ " " ++ t, "jmp " ++ f]
 		where
 		op o = case lookup o rel of
 			Just c -> c 
 		rel = [(EQ, "je"), (LT, "jl"), (GT, "jg"), (LE, "jle"), (GE, "jge"), (NE, "jne")]
 
 instance Assemble Global where
-	assemble (Global {curVarPos=p,globVarMap=m,varBody=bm}) = ["sub esp, " ++ show (4 *p)] ++ concat (map (\(i,e) -> assemble e ++ ["stl " ++ show i]) getList)
+	assemble (Global {curVarPos=p,globVarMap=m,varBody=bm}) = ["sub esp, " ++ show (4 *p)] ++ concat (map (\(i,e) -> assemble e ++ ["mov [ebp - " ++ show (4*i) ++ "]"]) getList)
 		where
 		getList = Map.elems (Map.intersectionWith (\x y -> (x, y)) m bm)
 	
