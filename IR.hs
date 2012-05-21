@@ -88,7 +88,7 @@ unNx (Cx c) = newLabel >-> \a -> SEQ (c a a) (LABEL a)
 
 unCx :: IR -> F (Label -> Label -> Stm)
 unCx (Nx s) = error $ "Cannot convert Nx to Cx"
-unCx (Ex e) = yield $ CJUMP EQ e (CONST 1)
+unCx (Ex e) = yield $ CJUMP NE e (CONST 0) -- allow values other than 0 to pass as True
 unCx (Cx c) = yield c
 
 convertProg :: AST.Prog -> Reg

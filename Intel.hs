@@ -1,5 +1,4 @@
 {-- Linux Intel machine assembly, assumes word length is 4 --}
--- TODO: make a working Hello World!
 -- FIXME: functions with empty body not allowed
 module Intel where
 
@@ -25,13 +24,12 @@ instance Assemble Exp where
 		
 	assemble (CALL (TEMP "_alloc") args) = ["push dword " ++ show (4 * length args), "call malloc", "add esp, 4", "push eax"] ++ concatMap (\(i,x) -> assemble x ++ ["pop eax", "pop ebx", "mov [ebx +" ++ show (i * 4) ++ "], eax", "push ebx"]) (zip [0..] args)
 	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["pop eax", "push dword[eax]"]
-	assemble (CALL (TEMP "tail") args) = assemble (head args) ++ ["ldh 1"]
-	assemble (CALL (TEMP "fst") args) = assemble (head args) ++ ["ldh 0"]
-	assemble (CALL (TEMP "snd") args) = assemble (head args) ++ ["ldh 1"]
-	assemble (CALL (TEMP "empty") args) = assemble (head args) ++ ["ldh 1", "ldc 0", "eq"]
-	-- FIXME: only prints single digit
---	assemble (CALL (TEMP "print") args) = assemble (head args) ++ ["pop eax", "add eax,30h", "push eax", "mov eax,4", "mov ecx,esp", "mov ebx,1", "mov edx,1", "int 0x80", "add esp, 4"]
+	assemble (CALL (TEMP "tail") args) = assemble (head args) ++ ["pop eax", "push dword[eax + 4]"]
+	assemble (CALL (TEMP "fst") args) = assemble (head args) ++ ["pop eax", "push dword[eax]"]
+	assemble (CALL (TEMP "snd") args) = assemble (head args) ++ ["pop eax", "push dword[eax + 4]"]
+	assemble (CALL (TEMP "empty") args) = assemble (head args) ++ ["pop eax", "mov eax, dword[eax + 4]", "xor eax, 1", "push eax"]
 	assemble (CALL (TEMP "print") args) = assemble (head args) ++ ["push dword print_int", "call printf", "add esp, 8"]
+	assemble (CALL (TEMP "printChar") args) = assemble (head args) ++ ["push dword print_char", "call printf", "add esp, 8"]
 	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["call " ++ id, "add esp, " ++ show (4 * length args), "push eax"] -- FIXME: what happens if there is no return value?
 	
 instance Assemble Stm where
@@ -60,7 +58,7 @@ instance Assemble Frame where
 		lastOp = if i == "main" then ["mov ebx,0", "mov eax,1", "int 0x80"] else ["ret"]
 	
 instance Assemble Reg where
-	assemble (Reg { frameList=f, globVars=g}) = ["extern malloc,printf", "segment .data", "print_int db \"%d\", 10, 0", "section .text", "global main", "mov esi,ebp"] ++ assemble g ++  ["jmp main"] ++ concat (map assemble (Map.elems f))
+	assemble (Reg { frameList=f, globVars=g}) = ["extern malloc,printf", "segment .data", "print_int db \"%d\", 10, 0", "print_char db \"%c\", 0", "section .text", "global main", "mov esi,ebp"] ++ assemble g ++  ["jmp main"] ++ concat (map assemble (Map.elems f))
 
 instance Assemble IR where
 	assemble (Ex e) = assemble e

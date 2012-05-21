@@ -151,7 +151,7 @@ buildEnv p = foldl (\x y -> case y of
 -- Adds the default functions
 -- Assumes the Scope is set to Global
 defaultFunctions :: Env -> Env
-defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
+defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print, printChar]
 	where
 	hd = ("head", Function [List_ (Generic_ "t")] (Generic_ "t"))
 	tl = ("tail", Function [List_ (Generic_ "t")] (List_ (Generic_ "t")))
@@ -159,6 +159,7 @@ defaultFunctions = listDo addSymbol [hd, tl, isEmpty, fst, snd, print]
 	fst = ("fst", Function [Tuple_ (Generic_ "t") (Generic_ "v")] (Generic_ "t"))
 	snd = ("snd", Function [Tuple_ (Generic_ "t") (Generic_ "v")] (Generic_ "t"))
 	print = ("print", Function [Generic_ "t"] Void)
+	printChar = ("printChar", Function [Generic_ "t"] Void)
 
 -- Type check an entire program
 progTypeCheck :: Prog -> Env
