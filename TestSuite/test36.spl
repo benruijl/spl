@@ -1,3 +1,5 @@
+int a = 5;
+
 void main() {
-	print(6);
+	print(5 % 3);
 }

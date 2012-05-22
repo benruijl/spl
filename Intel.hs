@@ -15,12 +15,13 @@ instance Assemble Exp where
 	assemble (TEMP l) = [l]
 	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["push dword[esi - " ++ show (4*x) ++ "]"]  
 	assemble (MEM (CONST a)) = ["push dword[ebp -" ++ show (4* a) ++ "]"]
-	-- TODO: fix modulo
+	assemble (BINOP DIV a b) = assemble a ++ assemble b  ++ ["pop ebx", "pop eax", "mov edx, 0", "idiv ebx", "push eax"]
+	assemble (BINOP MOD a b) = assemble a ++ assemble b  ++ ["pop ebx", "pop eax", "mov edx, 0", "idiv ebx", "push edx"]
 	assemble (BINOP o a b) = assemble a ++ assemble b ++ ["pop ebx", "pop eax", op o ++ " eax, ebx", "push eax"]
 		where
 		op o = case lookup o conv of
 			Just c -> c 
-		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "imul"), (DIV, "div"), (MOD, "mod"), (XOR, "xor")]
+		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "imul"), (XOR, "xor")]
 		
 	assemble (CALL (TEMP "_alloc") args) = ["push dword " ++ show (4 * length args), "call malloc", "add esp, 4", "push eax"] ++ concatMap (\(i,x) -> assemble x ++ ["pop eax", "pop ebx", "mov [ebx +" ++ show (i * 4) ++ "], eax", "push ebx"]) (zip [0..] args)
 	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["pop eax", "push dword[eax]"]
@@ -34,7 +35,7 @@ instance Assemble Exp where
 	assemble (CALL (TEMP id) args) = concat (map assemble args) ++ ["call " ++ id, "add esp, " ++ show (4 * length args), "push eax"]
 	
 instance Assemble Stm where
-	assemble (MOVE (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) e) = ["ldr 4"] ++ assemble e ++ ["sta " ++ show x]
+	assemble (MOVE (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) e) = assemble e ++ ["pop eax", "mov [esi - " ++ show x ++ "], eax"]
 	assemble (MOVE (MEM (TEMP "_res")) e) = assemble e ++ ["pop eax"]-- store in EAX
 	assemble (MOVE (MEM (CONST v)) b) = assemble b ++ ["pop eax", "mov [ebp - " ++ show (4*v) ++ "], eax"]
 	assemble (EXP e) = assemble e ++ ["pop eax"] -- remove result from expression from stack -- TODO: add "pop eax", because the result is not captured?"
@@ -48,7 +49,7 @@ instance Assemble Stm where
 		rel = [(EQ, "je"), (LT, "jl"), (GT, "jg"), (LE, "jle"), (GE, "jge"), (NE, "jne")]
 
 instance Assemble Global where
-	assemble (Global {curVarPos=p,globVarMap=m,varBody=bm}) = ["sub esp, " ++ show (4 *p)] ++ concat (map (\(i,e) -> assemble e ++ ["mov [ebp - " ++ show (4*i) ++ "]"]) getList)
+	assemble (Global {curVarPos=p,globVarMap=m,varBody=bm}) = ["sub esp, " ++ show (4 *p)] ++ concat (map (\(i,e) -> assemble e ++ ["pop eax", "mov [ebp - " ++ show (4*i) ++ "],  eax"]) getList)
 		where
 		getList = Map.elems (Map.intersectionWith (\x y -> (x, y)) m bm)
 	
