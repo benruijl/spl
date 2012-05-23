@@ -1,5 +1,10 @@
 int a = 5;
 
+
+int test(int c, int b) {
+	return a;
+}
+
 void main() {
-	print(5 % 3);
+	print(test(1,2));
 }
