@@ -1,0 +1,28 @@
+h1. SPL Compiler
+
+This project is a compiler for a small imperative language named _SPL_ (Simple Programming Language). The compiler is written in Haskell and is fully working. It only makes use of the basic Haskell modules and contains as little hacks as possible.
+
+Compiler features:
+* Built-in parser
+* Type checking (and basic inference)
+* Intel x86 backend
+
+h2. Language features
+
+* C-style imperative language
+* Support for *lists* and *tuples*
+* Full support for *generic types*
+
+Example SPL:
+
+
+bc.. [int] reverse ([int] list)
+{
+	[int] accu = [];
+	while(!empty(list))
+	{
+		accu = head(list) : accu;
+		list = tail(list);
+	}
+	return accu;
+}

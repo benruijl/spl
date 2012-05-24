@@ -13,7 +13,7 @@ instance Assemble Exp where
 	assemble (CONST a) = ["mov eax, " ++ show a]
 	assemble (NAME s) = [s]
 	assemble (TEMP l) = [l]
-	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["mov eax, dword[esi - " ++ show (4*x) ++ "]"]  
+	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["mov eax, dword[GLOB - " ++ show (4*x) ++ "]"]  
 	assemble (MEM (CONST a)) = ["mov eax, dword[ebp -" ++ show (4* a) ++ "]"]
 	assemble (BINOP DIV a b) = assemble b ++ ["push eax"] ++ assemble a ++ ["pop ebx", "mov edx, 0", "idiv ebx"]
 	assemble (BINOP MOD a b) = assemble b ++ ["push eax"] ++ assemble a  ++ ["pop ebx", "mov edx, 0", "idiv ebx", "mov eax, edx"]
@@ -34,7 +34,7 @@ instance Assemble Exp where
 	assemble (CALL (TEMP id) args) = concat (map (\x -> assemble x ++ ["push eax"]) args) ++ ["call " ++ id, "add esp, " ++ show (4 * length args)]
 	
 instance Assemble Stm where
-	assemble (MOVE (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) e) = assemble e ++ ["mov [esi - " ++ show x ++ "], eax"]
+	assemble (MOVE (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) e) = assemble e ++ ["mov [GLOB - " ++ show x ++ "], eax"]
 	assemble (MOVE (MEM (TEMP "_res")) e) = assemble e -- stored in eax
 	assemble (MOVE (MEM (CONST v)) b) = assemble b ++ ["mov [ebp - " ++ show (4*v) ++ "], eax"]
 	assemble (EXP e) = assemble e
@@ -48,7 +48,7 @@ instance Assemble Stm where
 		rel = [(EQ, "je"), (LT, "jl"), (GT, "jg"), (LE, "jle"), (GE, "jge"), (NE, "jne")]
 
 instance Assemble Global where
-	assemble (Global {curVarPos=p,globVarMap=m,varBody=bm}) = ["sub esp, " ++ show (4 *p)] ++ concat (map (\(i,e) -> assemble e ++ ["mov [ebp - " ++ show (4*i) ++ "],  eax"]) getList)
+	assemble (Global {curVarPos=p,globVarMap=m,varBody=bm}) = ["_initglob:"] ++ concat (map (\(i,e) -> assemble e ++ ["mov [ebp - " ++ show (4*i) ++ "],  eax"]) getList)
 		where
 		getList = Map.elems (Map.intersectionWith (\x y -> (x, y)) m bm)
 	
@@ -59,9 +59,9 @@ instance Assemble Frame where
 		lastOp = if i == "main" then ["push 0", "call exit"] else ["ret"]
 	
 instance Assemble Reg where
-	assemble (Reg { frameList=f, globVars=g}) = ["extern malloc,printf,exit", "segment .data", "GLOB dd " ++ show (getGlobSize g), "print_int db \"%d\", 10, 0", "print_char db \"%c\", 0", "section .text", "global main", "mov esi,ebp"] ++ assemble g ++  ["jmp main"] ++ concat (map assemble (Map.elems f))
+	assemble (Reg { frameList=f, globVars=g}) = ["extern malloc,printf,exit", "segment .data", "print_int db \"%d\", 10, 0", "print_char db \"%c\", 0", "segment .bss",  "GLOB: resw " ++ show (getGlobSize g), "segment .text", "global main", "_main:"] ++ assemble g ++  ["jmp main"] ++ concat (map assemble (Map.elems f))
 		where
-		getGlobSize (Global {curVarPos=p}) = 4 *p
+		getGlobSize (Global {curVarPos=p}) = p
 
 instance Assemble IR where
 	assemble (Ex e) = assemble e
