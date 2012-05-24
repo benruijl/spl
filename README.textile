@@ -26,3 +26,19 @@ bc.. [int] reverse ([int] list)
 	}
 	return accu;
 }
+
+
+h2. Compilation
+
+First, compile the compiler:
+
+@ghc -o splc --make Main.hs@
+
+Then, generate the Intel assembly of a .spl file with:
+
+@./splc hello_world.spl@
+
+Save the assembly code from the output to a .asm file. Finally, create the executable:
+
+bc.. nasm -f elf hello_world.asm
+gcc -m32 -o hello_world hello_world.o
