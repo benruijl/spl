@@ -23,7 +23,7 @@ instance Assemble Exp where
 			Just c -> c 
 		conv = [(PLUS, "add"), (MINUS, "sub"), (AND, "and"), (OR, "or"), (MUL, "imul"), (XOR, "xor")]
 		
-	assemble (CALL (TEMP "_alloc") args) = ["push dword " ++ show (4 * length args), "call malloc", "add esp, 4", "push eax"] ++ concatMap (\(i,x) -> assemble x ++ ["pop ebx", "mov [ebx +" ++ show (i * 4) ++ "], eax", "push ebx"]) (zip [0..] args)
+	assemble (CALL (TEMP "_alloc") args) = ["push dword " ++ show (4 * length args), "call malloc", "add esp, 4", "push eax"] ++ concatMap (\(i,x) -> assemble x ++ ["pop ebx", "mov [ebx +" ++ show (i * 4) ++ "], eax", "push ebx"]) (zip [0..] args) ++ ["pop eax"]
 	assemble (CALL (TEMP "head") args) = assemble (head args) ++ ["mov eax, dword[eax]"]
 	assemble (CALL (TEMP "tail") args) = assemble (head args) ++ ["mov eax, dword[eax + 4]"]
 	assemble (CALL (TEMP "fst") args) = assemble (head args) ++ ["mov eax, dword[eax]"]
@@ -48,18 +48,19 @@ instance Assemble Stm where
 		rel = [(EQ, "je"), (LT, "jl"), (GT, "jg"), (LE, "jle"), (GE, "jge"), (NE, "jne")]
 
 instance Assemble Global where
-	assemble (Global {curVarPos=p,globVarMap=m,varBody=bm}) = ["_initglob:"] ++ concat (map (\(i,e) -> assemble e ++ ["mov [ebp - " ++ show (4*i) ++ "],  eax"]) getList)
+	assemble (Global {curVarPos=p,globVarMap=m,varBody=bm}) = concat (map (\(i,e) -> assemble e ++ ["mov [GLOB - " ++ show (4*i) ++ "],  eax"]) getList)
 		where
 		getList = Map.elems (Map.intersectionWith (\x y -> (x, y)) m bm)
 	
--- FIXME add or sub?
 instance Assemble Frame where
-	assemble (Frame {curPos=c, IR.id=i, varMap=v, body=b}) = [i ++ ": "] ++ ["push ebp", "mov ebp,esp", "sub esp, " ++ show (4*c)] ++ assemble b ++ ["mov esp,ebp"] ++ ["pop ebp"] ++ lastOp
+	assemble (Frame {curPos=c, IR.id=i, varMap=v, body=b}) = [getName ++ ": "] ++ ["push ebp", "mov ebp,esp", "sub esp, " ++ show (4*c)] ++ assemble b ++ ["mov esp,ebp"] ++ ["pop ebp"] ++ lastOp
 		where
+		getName = if i == "main" then "_main" else i
 		lastOp = if i == "main" then ["push 0", "call exit"] else ["ret"]
-	
+
+-- FIXME: when calling main(), the global variables will be reinitialized!
 instance Assemble Reg where
-	assemble (Reg { frameList=f, globVars=g}) = ["extern malloc,printf,exit", "segment .data", "print_int db \"%d\", 10, 0", "print_char db \"%c\", 0", "segment .bss",  "GLOB: resw " ++ show (getGlobSize g), "segment .text", "global main", "_main:"] ++ assemble g ++  ["jmp main"] ++ concat (map assemble (Map.elems f))
+	assemble (Reg { frameList=f, globVars=g}) = ["extern malloc,printf,exit", "segment .data", "print_int db \"%d\", 10, 0", "print_char db \"%c\", 0", "segment .bss",  "GLOB: resw " ++ show (getGlobSize g), "segment .text", "global main", "main:"] ++ assemble g ++  ["jmp _main"] ++ concat (map assemble (Map.elems f))
 		where
 		getGlobSize (Global {curVarPos=p}) = p
 

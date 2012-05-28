@@ -20,7 +20,7 @@ scanSuccess (Just (x,"")) = x
 scanSuccess (Just (_,xs)) = error $ "Scan error at block '" ++ (take 20 xs) ++ "'"
 scanSuccess Nothing = error "Scan error: could not read anything."
 
--- read a file
+-- Compile a .spl file
 main = do
    [s] <- getArgs
    f <- readFile s
