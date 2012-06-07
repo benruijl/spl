@@ -31,6 +31,7 @@ instance Assemble Exp where
 	assemble (CALL (TEMP "empty") args) = assemble (head args) ++ ["mov eax, dword[eax + 4]", "xor eax, 1"]
 	assemble (CALL (TEMP "print") args) = assemble (head args) ++ ["push eax", "push dword print_int", "call printf", "add esp, 8"]
 	assemble (CALL (TEMP "printChar") args) = assemble (head args) ++ ["push eax", "push dword print_char", "call printf", "add esp, 8"]
+	assemble (CALL (TEMP "free") args) = assemble (head args) ++ ["push eax", "call printf", "add esp, 4"]
 	assemble (CALL (TEMP id) args) = concat (map (\x -> assemble x ++ ["push eax"]) args) ++ ["call " ++ id, "add esp, " ++ show (4 * length args)]
 	
 instance Assemble Stm where
@@ -60,7 +61,7 @@ instance Assemble Frame where
 
 -- FIXME: when calling main(), the global variables will be reinitialized!
 instance Assemble Reg where
-	assemble (Reg { frameList=f, globVars=g}) = ["extern malloc,printf,exit", "segment .data", "print_int db \"%d\", 10, 0", "print_char db \"%c\", 0", "segment .bss",  "GLOB: resw " ++ show (getGlobSize g), "segment .text", "global main", "main:"] ++ assemble g ++  ["jmp _main"] ++ concat (map assemble (Map.elems f))
+	assemble (Reg { frameList=f, globVars=g}) = ["extern malloc,printf,exit,free", "segment .data", "print_int db \"%d\", 10, 0", "print_char db \"%c\", 0", "segment .bss",  "GLOB: resw " ++ show (getGlobSize g), "segment .text", "global main", "main:"] ++ assemble g ++  ["jmp _main"] ++ concat (map assemble (Map.elems f))
 		where
 		getGlobSize (Global {curVarPos=p}) = p
 
