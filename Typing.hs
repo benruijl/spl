@@ -40,7 +40,7 @@ isIncluded a b = a == b
 unify :: Type -> Type -> Env -> Env
 unify (List_ a) (List_ b) = unify a b
 unify (Tuple_ a b) (Tuple_ d e) = unify a d . unify b e
-unify (Generic_ a) (Generic_ b) = if (a == b) then id else addMap (Generic_ a) (Generic_ b) -- TODO: is this safe?
+unify (Generic_ a) (Generic_ b) = if (a == b) then id else addMap (Generic_ a) (Generic_ b)
 unify (Generic_ a) b = \e -> if isIncluded (Generic_ a) b then error $ "Cannot unify types: " ++ a ++ " and " ++ show b ++ showEnv e else addMap (Generic_ a) b e
 unify a (Generic_ b) = unify (Generic_ b) a
 unify a b = \e -> if a == b then e else error $ "Cannot unify types: " ++ show a ++ " and " ++ show b ++ "\nDump:\n" ++ showEnv e
@@ -93,7 +93,8 @@ getSymbolType' id (Local fid) e@(_, _, l, _, _) = case Map.lookup fid l of
 	Nothing -> Nothing
 getSymbolType' id FunctionCall e@(_, _, _, (s, _), _) = case find (\(i,t) -> i == id) s of
 	Just (i, t) -> Just (i, t)
-	Nothing -> getSymbolType' id (Local "") e -- FIXME: it matter what the function is, this will fail!
+	-- FIXME: it matters what the function is, this will fail!
+	Nothing -> getSymbolType' id (Local "") e 
 
 -- Adds a map from a generic to another type
 addMap :: Type -> Type -> Env -> Env

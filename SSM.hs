@@ -12,7 +12,7 @@ instance Assemble Exp where
 	assemble (NAME s) = [s]
 	assemble (TEMP l) = [l]
 	assemble (MEM (BINOP PLUS (TEMP "_glob") (CONST x))) = ["ldr 4", "lda " ++ show x]  
-	assemble (MEM (CONST a)) = ["ldl " ++ show a]  -- FIXME: do something else?
+	assemble (MEM (CONST a)) = ["ldl " ++ show a]  -- push local variable to stack
 	assemble (BINOP o a b) = assemble a ++ assemble b ++ [op o]
 		where
 		op o = case lookup o conv of

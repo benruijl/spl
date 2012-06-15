@@ -1,6 +1,8 @@
 h1. SPL Compiler
 
-This project is a compiler for a small imperative language named _SPL_ (Simple Programming Language). The compiler is written in Haskell and is fully working. It only makes use of the basic Haskell modules and contains as little hacks as possible.
+This project is a compiler for a small imperative language named _SPL_ (Simple Programming Language). The compiler is written in Haskell and is fully working. It only makes use of the basic Haskell modules and contains as little hacks as possible. 
+
+This project is suited for developers interested in learning how a compiler is built. The code is clear and consise.
 
 Compiler features:
 * Built-in parser
@@ -16,9 +18,9 @@ h2. Language features
 Example SPL:
 
 
-bc.. [int] reverse ([int] list)
+bc.. [t] reverse ([t] list)
 {
-	[int] accu = [];
+	[t] accu = [];
 	while(!empty(list))
 	{
 		accu = head(list) : accu;
@@ -36,7 +38,7 @@ First, compile the compiler:
 
 Then, generate the Intel assembly of a .spl file with:
 
-@./splc hello_world.spl@
+@./splc hello_world.spl > hello_world.asm@
 
 Save the assembly code from the output to a .asm file. Finally, create the executable:
 
