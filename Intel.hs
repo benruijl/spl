@@ -31,7 +31,7 @@ instance Assemble Exp where
 	assemble (CALL (TEMP "empty") args) = assemble (head args) ++ ["mov eax, dword[eax + 4]", "xor eax, 1"]
 	assemble (CALL (TEMP "print") args) = assemble (head args) ++ ["push eax", "push dword print_int", "call printf", "add esp, 8"]
 	assemble (CALL (TEMP "printChar") args) = assemble (head args) ++ ["push eax", "push dword print_char", "call printf", "add esp, 8"]
-	assemble (CALL (TEMP "free") args) = assemble (head args) ++ ["push eax", "call printf", "add esp, 4"]
+	assemble (CALL (TEMP "free") args) = assemble (head args) ++ ["push eax", "call free", "add esp, 4"]
 	assemble (CALL (TEMP id) args) = concat (map (\x -> assemble x ++ ["push eax"]) args) ++ ["call " ++ id, "add esp, " ++ show (4 * length args)]
 	
 instance Assemble Stm where

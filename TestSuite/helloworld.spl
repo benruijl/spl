@@ -1,10 +1,12 @@
 void main() {
-	[int] hello = 72 : 101 : 108 : 108 : 111 : 32 : 119 : 111 : 114 : 108 : 100 : 33 : 10 : [];
+    [int] hello = 72:101:108:108:111:32:119:
+                  111:114:108:100:33:10:[];
+    [int] cur = hello;
 
-	while(!empty(hello)) {
-		printChar(head(hello));
-		hello = tail(hello);
-	}
+    while(!empty(cur)) {
+        printChar(head(cur));
+        cur = tail(cur);
+    }
 
-	free(hello);
+    free(hello);
 }
