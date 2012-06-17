@@ -68,13 +68,13 @@ retTypeParse = (match "void") >-> (\x -> Void) ! typeParse
 varDeclParse :: Parser VarDecl
 varDeclParse = ( typeParse # idScan >>- (match "=") # expParse >>- (match ";")) >-> (\((x, y),z) -> VD x y z)
 
--- Right recursive expression parser
+-- Right associative expression parser
 nextr :: Parser ExpOp -> Parser Exp -> Parser Exp
 nextr o p = p /?\ next'
 	where
 	next' x = o # (p /?\ next')  >-> (\(o,y) -> ExpOp_ o x y)
 	
--- Left recursive expression parser
+-- Left associative expression parser
 nextl :: Parser ExpOp -> Parser Exp -> Parser Exp
 nextl o p = p /?\ next'
 	where

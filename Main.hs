@@ -37,8 +37,8 @@ main = do
 		( _, [], _ ) -> putStrLn (usageInfo header options)
 		([], [s], _) -> do 
 						f <- readFile s
-						return (progTypeCheck (prog f))
-						mapM_ putStrLn (assemble $ convertProg (prog f))
+						let p = prog(f) 
+						mapM_ putStrLn (assemble $ Prelude.seq (progTypeCheck p) (convertProg p))
 		(opts, [s], [])
 			| Help `elem` opts -> putStrLn (usageInfo header options)
 		 	| PrettyPrint `elem` opts -> do

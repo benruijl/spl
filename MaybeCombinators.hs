@@ -51,6 +51,7 @@ infixr 6 /\
 	Nothing -> Nothing
 	Just (c,cs') -> q c cs'
 
+-- execute op2, but if it fails just return the result of op1
 infix 6 /?\
 (/?\) :: CoreScanner a b -> (a -> CoreScanner a b) -> CoreScanner a b
 (/?\) op1 op2 = op1 /\ (\l -> (op2 l) ! (tuple l))

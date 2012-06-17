@@ -76,7 +76,7 @@ addSymbolType s e@(i, m, l, f, FunctionCall) = addFunc s e
 getSymbol :: Id -> Env -> Type
 getSymbol id e@(i, s, l, f, Global) = case Map.lookup id s of
 	Just t -> t
-	Nothing -> error $ "Undefined variable or function '" ++ id ++ "', " ++ showEnv e
+	Nothing -> error $ "Undefined variable or function '" ++ id ++ "'"
 getSymbol id e@(i, m, l, f, Local fid) = case Map.lookup fid l of 
 	Just (_, s) ->  case find (\(i,t) -> i == id) s of
 		Just (i, t) -> t
@@ -143,6 +143,7 @@ clearFunc :: Env -> Env
 clearFunc (i, m, l, f, c) = (i, m, l, ([],Map.empty), c)
 
 -- Builds a global environment from a program
+-- Adds all global variables and function declarations
 buildEnv :: Prog -> Env
 buildEnv p = foldl (\x y -> case y of 
 		 (VarDecl (VD t name _)) -> addSymbol (name, t) x
@@ -193,7 +194,6 @@ instance TypeCheck VarDecl where
 		enf = yield t !~! typeCheck exp
 
 instance TypeCheck FunDecl where
-	-- TODO: add all function definitions at the start, so they can be called from anywhere
 	typeCheck (FD ret name args vars stmts) = (setScope Global >--> updateDef name >--> iter typeCheck vars # typeCheck stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
 
 instance TypeCheck Exp where
