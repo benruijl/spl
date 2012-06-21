@@ -1,7 +1,0 @@
-int add(int a) {
-	return a + 1;
-}
-
-void main() {
-	print(add(2));
-}
