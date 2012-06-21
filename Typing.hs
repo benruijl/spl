@@ -150,6 +150,19 @@ buildEnv p = foldl (\x y -> case y of
 		 (FunDecl (FD ret name args vars stmts)) -> addSymbol (name, Function (map fst args) ret) x)
 		(defaultFunctions cleanEnv) p
 
+-- Checks if non-void functions return in all cases
+checkReturn :: FunDecl -> Bool
+checkReturn (FD Void _ _ _ _) = True
+checkReturn (FD _ id _ _ s) = if checkReturn' s then True else error $ "Control reached end of non-void function '" ++ id ++ "'"
+	where
+	checkReturn' (Return _) = True
+	checkReturn' (Assign _ _) = False
+	checkReturn' (FunCall_ _) = False
+	checkReturn' (Seq stm) = any checkReturn' stm
+	checkReturn' (If _ a) = checkReturn' a
+	checkReturn' (IfElse _ a b) = checkReturn' a && checkReturn' b
+	checkReturn' (While _ a) = checkReturn' a
+
 -- Adds the default functions
 -- Assumes the Scope is set to Global
 defaultFunctions :: Env -> Env
@@ -194,7 +207,7 @@ instance TypeCheck VarDecl where
 		enf = yield t !~! typeCheck exp
 
 instance TypeCheck FunDecl where
-	typeCheck (FD ret name args vars stmts) = (setScope Global >--> updateDef name >--> iter typeCheck vars # typeCheck stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
+	typeCheck f@(FD ret name args vars stmts) = seq (checkReturn f) $ (setScope Global >--> updateDef name >--> iter typeCheck vars # typeCheck stmts >-> (\_ -> ret)) . listDo (\(t,n) -> addSymbol (n, t)) args .  setScope (Local name) . addSymbol (name, (Function (map fst args) ret))
 
 instance TypeCheck Exp where
 	typeCheck (Int _) = yield Int_
